@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using TrackManagement.Application.Common.Persistence;
 using TrackManagement.Infrastructure.Auth;
@@ -11,6 +12,8 @@ namespace TrackManagement.Infrastructure;
 public static class DependencyInjection
 {
     public const string DatabaseHealthCheckName = "database";
+
+    public static readonly TimeSpan DatabaseHealthCheckTimeout = TimeSpan.FromSeconds(3);
 
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
@@ -43,6 +46,16 @@ public static class DependencyInjection
 
         services.AddHealthChecks()
             .AddDbContextCheck<AppDbContext>(DatabaseHealthCheckName);
+
+        // The Npgsql retry strategy also retries the probe's connection attempt (~60 s when the DB is
+        // down). Cap the check so Docker/ALB probes get a fast 503 instead of timing out.
+        services.Configure<HealthCheckServiceOptions>(options =>
+        {
+            foreach (var registration in options.Registrations.Where(r => r.Name == DatabaseHealthCheckName))
+            {
+                registration.Timeout = DatabaseHealthCheckTimeout;
+            }
+        });
 
         return services;
     }

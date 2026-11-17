@@ -41,6 +41,17 @@ public sealed class ConfigurationValidationTests
         ex.Message.ShouldContain("SigningKey");
     }
 
+    [Fact]
+    public void DatabaseHealthCheck_HasShortTimeout_SoProbesFailFastWhenDatabaseIsDown()
+    {
+        using var provider = Build(new() { ["ConnectionStrings:Default"] = "Host=db", ["Jwt:SigningKey"] = ValidKey });
+
+        var registration = provider.GetRequiredService<IOptions<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckServiceOptions>>()
+            .Value.Registrations.Single(r => r.Name == DependencyInjection.DatabaseHealthCheckName);
+
+        registration.Timeout.ShouldBeLessThanOrEqualTo(TimeSpan.FromSeconds(5));
+    }
+
     private static ServiceProvider Build(Dictionary<string, string?> values)
     {
         var defaults = new Dictionary<string, string?> { ["Jwt:Issuer"] = "i", ["Jwt:Audience"] = "a" };
