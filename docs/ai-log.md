@@ -475,7 +475,9 @@ dot → `/status`, sign-out → `/login`. No horizontal overflow; no app console
   reset with `docker compose down -v` (the AI had proposed a one-time data fix); the platform count is
   not hard-coded – up to 20 distinct ids per request; Q2–Q5 as recommended; A1–A6 with A1 adjusted;
   the README rule (finished product, fixed structure, no phase history).
-- Developer wrote/changed: _Developer notes (Yousef): – placeholder –_
+- Developer notes (Yousef):
+  - I reviewed the Phase 4 plan before approving it. I asked for no data migration (reset the local database instead), no hard-coded limit of three platforms (any number of existing DSPs, up to 20 distinct ids per request), and for PATCH to "distributed" to be refused with a clear explanation in the README.
+  - I asked for the README to describe the finished product and not the phases, and for that rule to be added to the constitutions and skills.
 
 ### (b) Security
 | Issue | Where | Introduced/found by | Handling | Status |
@@ -536,7 +538,8 @@ Deliveries are public on the track detail (platform name, status, times): no per
   deliveries" text (developer decisions above).
 - Developer decided: as in the backend section (no data migration, PATCH → distributed refused,
   Q5 as recommended, README rule).
-- Developer wrote/changed: _Developer notes (Yousef): – placeholder –_
+- Developer notes (Yousef):
+  - While testing the app in the browser I found that the dropdown colors were hard to read and clash with the dark theme, and I asked for them to be fixed in the same PR.
 
 **(b) Security**
 | Issue | Where | Introduced/found by | Handling | Status |
@@ -563,6 +566,22 @@ Deliveries are public on the track detail (platform name, status, times): no per
    second delivery's buttons and the page could not scroll further (my script's click hit the toast).
    Fix: bottom space on phones (`pb-32`). Also my first keyboard check "failed" because the DevTools key
    event had no `text`; with a real Enter the dialog opens – a script problem, not an app bug.
+
+6. **Unreadable dropdowns – found by the developer in manual testing, not by me.** My browser runs
+   checked page content but never opened a native select list. In dark mode the list was light grey with
+   pale text (measured 1.49:1): Chromium paints the popup from the select's 30%-transparent background
+   composited on white. **First approach (plain CSS): opaque theme colours on every option and
+   `color-scheme` per theme** fixed the list text, but **could not style the highlighted row** – the
+   browser draws it (light grey in Edge, light blue in Chrome/Brave). I reported that and proposed options;
+   the developer chose Chromium's customizable select (`appearance: base-select`) behind `@supports`, with
+   the plain-CSS version as fallback. One shared `NativeSelect` and one CSS block, tokens only; light
+   `--ring` darkened to `#9a6500` (the saffron ring was 2.1–2.5:1 on light surfaces). Measured in Edge
+   dark: list 13.8:1, highlighted row 9.32:1, focus ring 6.06:1; keyboard (Space, arrows, type-ahead,
+   Enter, Escape) and the accessibility tree (combobox + options, expanded) checked in the browser. The
+   full Edge/Chrome/Brave × light/dark × desktop/400 px matrix and the fallback check with the feature
+   disabled were not finished when the developer asked to commit.
+   Also: my first screen captures of native popups grabbed whatever window was in front (the
+   developer's own browser); they were deleted and later captures pinned the test window on top.
 
 **Real-browser results** (compose, fresh database + ~1,000 load-test tracks; Edge over DevTools,
 desktop light + 400 px dark): visitor sees deliveries (Pending/Live/Rejected, times, "Waiting") and no
