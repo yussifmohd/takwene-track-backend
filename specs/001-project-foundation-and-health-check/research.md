@@ -26,7 +26,7 @@ required major line, with a permissive license.
 | Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.3 | PostgreSQL | 2026-07-10 | |
 | EFCore.NamingConventions | 10.0.1 | Apache-2.0 | 2026-01-22 | snake_case like reference |
 | Microsoft.AspNetCore.OpenApi | 10.0.14 | MIT | 2026-10-25 | built-in OpenAPI |
-| Microsoft.Extensions.ApiDescription.Server | 10.0.14 | MIT | 2026-10-25 | build-time OpenAPI export for the contract |
+| ~~Microsoft.Extensions.ApiDescription.Server~~ | removed | | | build-time export returned empty paths (see R6) |
 | Scalar.AspNetCore | 2.18.7 | MIT | 2026-10-30 | 2.19+/3.0 too new |
 | Microsoft.AspNetCore.Authentication.JwtBearer | 10.0.14 | MIT | 2026-10-25 | registered now, used from Phase 1 |
 | Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore | 10.0.14 | MIT | 2026-10-25 | `AddDbContextCheck` |
@@ -75,11 +75,16 @@ Identity (`Microsoft.AspNetCore.Identity.EntityFrameworkCore` 10.0.14, MIT) is a
 
 ## R6. OpenAPI contract export
 
-- **Decision**: built-in `AddOpenApi("v1")` with document transformers (Bearer scheme, info);
-  `Microsoft.Extensions.ApiDescription.Server` writes `openapi/v1.json` on build
-  (`OpenApiDocumentsDirectory`). A `scripts/export-contract.ps1` copies it to
-  `specs/<feature>/contracts/openapi.json`. Phase 0 starts with a hand-written contract for the
-  health endpoint that the build output must match before the PR (task in tasks.md).
+- **Decision (revised during implementation)**: built-in `AddOpenApi("v1")` with a document
+  transformer (Bearer scheme, info). The contract is taken from the **running app**:
+  `tests/.../Api/OpenApiContractTests.cs` fetches `/openapi/v1.json` from the in-memory test host
+  (Development) and fails if it differs from `specs/<feature>/contracts/openapi.json`;
+  `scripts/export-contract.ps1 -Feature <dir>` runs that test in update mode to rewrite the file.
+  CI therefore catches contract drift.
+- **Why revised**: `Microsoft.Extensions.ApiDescription.Server` build-time generation produced an
+  empty `paths` object: it stops the app at host build, before Minimal API endpoints are mapped.
+  The package was removed.
+- JSON uses `JsonNumberHandling.Strict` so numeric fields are `number` (not `number | string`) in the contract.
 - **Docs exposure**: `MapOpenApi()` + `MapScalarApiReference()` only when `IsDevelopment()`.
 
 ## R7. Error handling

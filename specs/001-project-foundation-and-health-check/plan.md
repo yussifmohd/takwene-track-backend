@@ -121,7 +121,7 @@ project with folders mirroring `src`). Mirrors the reference's project split but
    `ValidationProblem` (field names camelCased), others → `Problem(statusCode, title, detail)`.
 4. **Health**: `/health` (infra) and `/api/health` (contract) share `HealthReportDto`; 503 when not Healthy.
 5. **Docs**: `MapOpenApi` + `MapScalarApiReference` inside `if (app.Environment.IsDevelopment())`;
-   Bearer scheme added by `IOpenApiDocumentTransformer`; build-time export to `openapi/v1.json`.
+   Bearer scheme added by `IOpenApiDocumentTransformer`; contract exported from the running app by a contract test (research R6, revised).
 6. **Config**: options + `ValidateOnStart`; startup fails on missing connection string or short JWT key.
 7. **Startup DB**: `Database:MigrateOnStartup` (true in compose/Development, false default);
    failure → exit non-zero.
