@@ -57,21 +57,24 @@ public sealed class TracksCountSpec : Specification<Track>
     public TracksCountSpec(TrackFilter filter) => Query.AsNoTracking().ApplyFilter(filter);
 }
 
-/// <summary>One track for reading, projected with the artist's name and the allowed next statuses.</summary>
+/// <summary>One track for reading, projected with the artist's name and its deliveries with platform names.</summary>
 public sealed class TrackDetailSpec : Specification<Track, TrackDetailDto>, ISingleResultSpecification<Track, TrackDetailDto>
 {
     public TrackDetailSpec(Guid id)
     {
         Query.AsNoTracking().Where(t => t.Id == id);
         Query.Select(t => TrackDetailDto.Create(
-            t.Id, t.Title, t.ArtistId, t.Artist.Name, t.Isrc, t.Genre, t.Status, t.ReleaseDate, t.CreatedAtUtc, t.UpdatedAtUtc));
+            t.Id, t.Title, t.ArtistId, t.Artist.Name, t.Isrc, t.Genre, t.Status, t.ReleaseDate, t.CreatedAtUtc, t.UpdatedAtUtc,
+            t.Distributions
+                .Select(d => new TrackDistributionRow(d.DspId, d.Dsp.Name, d.Status, d.SubmittedAtUtc, d.AnsweredAtUtc))
+                .ToList()));
     }
 }
 
-/// <summary>One track to change (tracked), with its artist for the response.</summary>
+/// <summary>One track to change (tracked), with its artist for the response and its deliveries (the aggregate).</summary>
 public sealed class TrackForUpdateSpec : Specification<Track>, ISingleResultSpecification<Track>
 {
-    public TrackForUpdateSpec(Guid id) => Query.Where(t => t.Id == id).Include(t => t.Artist);
+    public TrackForUpdateSpec(Guid id) => Query.Where(t => t.Id == id).Include(t => t.Artist).Include(t => t.Distributions);
 }
 
 /// <summary>Tracks using the ISRC (already normalised to 12 characters).</summary>

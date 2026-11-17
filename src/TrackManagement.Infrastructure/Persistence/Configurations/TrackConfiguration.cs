@@ -39,6 +39,15 @@ public sealed class TrackConfiguration : IEntityTypeConfiguration<Track>
             .HasForeignKey(t => t.ArtistId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Deliveries belong to the track (aggregate child): loaded through the backing field.
+        builder.HasMany(t => t.Distributions)
+            .WithOne()
+            .HasForeignKey(d => d.TrackId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(t => t.Distributions).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Ignore(t => t.AllowedNextStatuses);
+        builder.Ignore(t => t.CanDistribute);
+
         // The real guard against duplicate ISRCs (the validator check can race).
         builder.HasIndex(t => t.Isrc).IsUnique().HasDatabaseName(IsrcIndex);
         builder.HasIndex(t => t.Status).HasDatabaseName("ix_tracks_status");

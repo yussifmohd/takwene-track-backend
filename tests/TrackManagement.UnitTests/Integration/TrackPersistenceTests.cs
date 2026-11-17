@@ -155,7 +155,7 @@ public sealed class TrackPersistenceTests(PostgresFixture postgres)
         rap.Select(t => t.Title).ShouldBe(["Alpha", "beta"]);
         count.ShouldBe(3);
         detail!.Status.ShouldBe(TrackStatus.Submitted);
-        detail.AllowedNextStatuses.ShouldBe([TrackStatus.Draft, TrackStatus.Distributed]);
+        detail.AllowedNextStatuses.ShouldBe([TrackStatus.Draft]);
         detail.Distributions.ShouldBeEmpty();
     }
 }

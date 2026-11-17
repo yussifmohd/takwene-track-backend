@@ -31,18 +31,27 @@ public sealed class ChangeTrackStatusEndpointTests : TracksApiTestBase
         // draft → draft is a conflict too
         (await ChangeAsync(id, "draft")).Status.ShouldBe(HttpStatusCode.Conflict);
 
-        // draft → submitted → draft → submitted → distributed
+        // draft → submitted → draft → submitted; distributed only through Distribute
         (status, body) = await ChangeAsync(id, "submitted");
         status.ShouldBe(HttpStatusCode.OK);
         body.RootElement.GetProperty("status").GetString().ShouldBe("submitted");
-        body.RootElement.GetProperty("allowedNextStatuses").EnumerateArray().Select(s => s.GetString()).ShouldBe(["draft", "distributed"]);
+        body.RootElement.GetProperty("allowedNextStatuses").EnumerateArray().Select(s => s.GetString()).ShouldBe(["draft"]);
         body.RootElement.GetProperty("updatedAtUtc").GetDateTime().ShouldBe(DateTime.UtcNow, TimeSpan.FromMinutes(1));
 
         (await ChangeAsync(id, "draft")).Status.ShouldBe(HttpStatusCode.OK);
         (await ChangeAsync(id, "submitted")).Status.ShouldBe(HttpStatusCode.OK);
         (status, body) = await ChangeAsync(id, "distributed");
-        status.ShouldBe(HttpStatusCode.OK);
-        body.RootElement.GetProperty("allowedNextStatuses").GetArrayLength().ShouldBe(0);
+        status.ShouldBe(HttpStatusCode.Conflict);
+        body.RootElement.GetProperty("detail").GetString()
+            .ShouldBe("A track becomes distributed when it is sent to at least one platform. Use Distribute to send it.");
+
+        var distributed = await TracksApi.DistributeAsync(Client, AdminToken, id, new { dspIds = new[] { TrackManagement.Domain.Dsps.Dsp.SpotifyId } });
+        distributed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using (var after = await TracksApi.JsonAsync(distributed))
+        {
+            after.RootElement.GetProperty("status").GetString().ShouldBe("distributed");
+            after.RootElement.GetProperty("allowedNextStatuses").GetArrayLength().ShouldBe(0);
+        }
 
         // distributed is final
         foreach (var target in new[] { "draft", "submitted" })

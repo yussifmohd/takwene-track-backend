@@ -104,12 +104,13 @@ public sealed class ListTracksTests
     }
 
     [Fact]
-    public void DetailSpec_HasAllowedNextStatusesAndNoDistributions()
+    public void DetailSpec_SubmittedWithoutDeliveries_OffersOnlyWithdraw_AndCanDistribute()
     {
         var detail = new TrackDetailSpec(Data[0].Id).Evaluate(Data).Single();
 
         detail.Status.ShouldBe(TrackStatus.Submitted);
-        detail.AllowedNextStatuses.ShouldBe([TrackStatus.Draft, TrackStatus.Distributed]);
+        detail.AllowedNextStatuses.ShouldBe([TrackStatus.Draft]);
+        detail.CanDistribute.ShouldBeTrue();
         detail.Distributions.ShouldBeEmpty();
         detail.Isrc.ShouldBe("EG-AAA-26-00001");
         detail.ArtistName.ShouldBe("Amr Diab");

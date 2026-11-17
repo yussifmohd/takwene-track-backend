@@ -14,12 +14,24 @@ public sealed record TrackListItemDto(
     DateOnly ReleaseDate);
 
 /// <summary>
-/// A track's delivery to one platform. Always empty until Phase 4; a track marked distributed by a
-/// status change alone has none (see the spec, "Status and distributions").
+/// A track's delivery to one platform. <see cref="AnsweredAtUtc"/> is null while pending;
+/// <see cref="AllowedAnswers"/> lists the simulated platform answers allowed now (only while pending).
 /// </summary>
-public sealed record TrackDistributionDto(Guid DspId, string DspName, string Status, DateTime UpdatedAtUtc);
+public sealed record TrackDistributionDto(
+    Guid DspId,
+    string DspName,
+    DistributionStatus Status,
+    DateTime SubmittedAtUtc,
+    DateTime? AnsweredAtUtc,
+    IReadOnlyList<DistributionStatus> AllowedAnswers);
 
-/// <summary>One track with everything the detail page needs, including the status changes allowed next.</summary>
+/// <summary>A delivery as read from the database, before the allowed answers are added.</summary>
+public sealed record TrackDistributionRow(Guid DspId, string DspName, DistributionStatus Status, DateTime SubmittedAtUtc, DateTime? AnsweredAtUtc);
+
+/// <summary>
+/// One track with everything the detail page needs: the status changes allowed next, whether it can be
+/// distributed, and its deliveries ordered by platform name.
+/// </summary>
 public sealed record TrackDetailDto(
     Guid Id,
     string Title,
@@ -32,16 +44,29 @@ public sealed record TrackDetailDto(
     DateTime CreatedAtUtc,
     DateTime? UpdatedAtUtc,
     IReadOnlyList<TrackStatus> AllowedNextStatuses,
+    bool CanDistribute,
     IReadOnlyList<TrackDistributionDto> Distributions)
 {
-    public static TrackDetailDto From(Track track, string artistName) => Create(
+    /// <param name="dspNames">Platform names by id (all platforms; a few rows).</param>
+    public static TrackDetailDto From(Track track, string artistName, IReadOnlyDictionary<Guid, string> dspNames) => Create(
         track.Id, track.Title, track.ArtistId, artistName, track.Isrc, track.Genre, track.Status,
-        track.ReleaseDate, track.CreatedAtUtc, track.UpdatedAtUtc);
+        track.ReleaseDate, track.CreatedAtUtc, track.UpdatedAtUtc,
+        track.Distributions
+            .Select(d => new TrackDistributionRow(d.DspId, dspNames[d.DspId], d.Status, d.SubmittedAtUtc, d.AnsweredAtUtc))
+            .ToList());
 
     /// <summary>Shared by <see cref="From"/> and the detail projection, so both shape the DTO the same way.</summary>
     public static TrackDetailDto Create(
         Guid id, string title, Guid artistId, string artistName, string storedIsrc, string genre, TrackStatus status,
-        DateOnly releaseDate, DateTime createdAtUtc, DateTime? updatedAtUtc) => new(
+        DateOnly releaseDate, DateTime createdAtUtc, DateTime? updatedAtUtc, IReadOnlyCollection<TrackDistributionRow> distributions) => new(
         id, title, artistId, artistName, Domain.Tracks.Isrc.Format(storedIsrc), genre, status, releaseDate,
-        createdAtUtc, updatedAtUtc, TrackStatusRules.AllowedNext(status), []);
+        createdAtUtc, updatedAtUtc,
+        TrackStatusRules.AllowedNext(status, distributions.Count > 0),
+        status != TrackStatus.Draft,
+        distributions
+            .OrderBy(d => d.DspName, StringComparer.Ordinal)
+            .ThenBy(d => d.DspId)
+            .Select(d => new TrackDistributionDto(
+                d.DspId, d.DspName, d.Status, d.SubmittedAtUtc, d.AnsweredAtUtc, DistributionStatusRules.AllowedAnswers(d.Status)))
+            .ToList());
 }

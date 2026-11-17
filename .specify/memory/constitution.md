@@ -1,6 +1,10 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 → 1.1.0 (MINOR: Definition of Done materially expanded)
+- Version change: 1.1.0 → 1.2.0 (MINOR: README rule added to Development Workflow & Quality Gates)
+- Added: README describes the finished product (fixed structure, no phase history, accurate to the
+  code, updated only where the product changed) (user, Phase 4)
+- Templates: no edit needed (README tasks reference the rule in tasks.md per phase)
+- Previous amendment, 1.0.0 → 1.1.0 (MINOR: Definition of Done materially expanded)
 - Modified section: Development Workflow & Quality Gates – every phase PR must update
   docs/walkthrough.md and Memory.md; the Definition of Done is not met without both (user, Phase 2)
 - Principles: unchanged
@@ -113,6 +117,15 @@ files, one end-to-end request flow, decisions, how to run/test, limitations; des
 is in the code) and Memory.md; without both, the Definition of Done is not met.
 The backend PR of a phase is merged before the frontend PR.
 
+README rule (user, Phase 4): each repo's README describes the **finished product** for someone who
+clones the repo, not the history of the phases. Structure: what the project is; tech stack; quick
+start (Docker and without Docker); configuration and environment variables; how to run migrations;
+how to obtain a JWT; how to run tests; API overview (a short endpoint table); project structure; link
+to the other repo; links to `docs/walkthrough.md` and `DECISIONS.md`. The README MUST NOT mention phase
+numbers, "coming soon" or per-phase changelogs (those belong in `docs/walkthrough.md` and
+`docs/ai-log.md`), MUST stay accurate to what exists in the code today, and is updated in a PR only
+where the product changed.
+
 ## Governance
 
 This constitution supersedes other practices in this repo. Amendments require the user's
@@ -121,4 +134,4 @@ or materially expanded; PATCH: wording) and an updated Sync Impact Report. Every
 Constitution Check and every PR review verify compliance; any violation must be justified in the
 plan's Complexity Tracking table. Runtime guidance: `CLAUDE.md` and `Memory.md`.
 
-**Version**: 1.1.0 | **Ratified**: 2026-11-17 | **Last Amended**: 2026-11-17
+**Version**: 1.2.0 | **Ratified**: 2026-11-17 | **Last Amended**: 2026-11-17

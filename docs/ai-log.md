@@ -347,7 +347,9 @@ email; anonymous create → 401; malformed JSON and `page=abc` → 400; `pageSiz
   real PostgreSQL).
 - Developer decided: Q1–Q5 as recommended; all analyze fixes; how a manual "distributed" fits Phase 4
   (PATCH unchanged; such a track has no distribution rows and the detail says so).
-- Developer wrote/changed: _Developer notes (Yousef):_ <!-- to be written by Yousef -->
+- Developer wrote/changed: _Developer notes (Yousef):_
+  - "I reviewed the Phase 3 plan before approving it, accepted the five recommended answers, and asked Claude to merge backend PR #4 first so the AI log would not conflict."
+  - "I raised the risk that PATCH status could set "distributed" without any DSP delivery, which would clash with Phase 4's distribute endpoint, and asked for the reconciliation to be written down in the spec."
 
 ### (b) Security
 | Issue | Where | Introduced/found by | Handling | Status |
@@ -405,7 +407,9 @@ email; anonymous create → 401; malformed JSON and `page=abc` → 400; `pageSiz
   scripts (not committed).
 - Developer decided: Q1–Q5 as recommended (all statuses public, no edit/delete, artist search, order,
   confirm before distributed); the wording for a track distributed without deliveries.
-- Developer wrote/changed: _Developer notes (Yousef):_ <!-- to be written by Yousef -->
+- Developer wrote/changed: _Developer notes (Yousef):_
+  - "While testing the Phase 3 UI in the browser I found that the artist field was not cleared by "Clear filters". Claude fixed it in PR #6."
+  - "During testing I also noticed that "Mark as distributed" doesn't record which DSP the track went to, so I asked for it to be addressed in Phase 4."
 
 **(b) Security**
 | Issue | Where | Introduced/found by | Handling | Status |
@@ -450,3 +454,140 @@ reload keeps the artist's name, track page, unknown track, sign-in from Add trac
 (focus on Title), picker lists the first 10, duplicate ISRC under ISRC, create → track page + toast,
 submit, confirm dialog, distributed (final, "without platform deliveries recorded"), paging, status
 dot → `/status`, sign-out → `/login`. No horizontal overflow; no app console errors. Bundle 200.7 kB gzip.
+
+---
+
+## Phase 4 – Distribution (005-track-distribution-to-dsps / 005-track-distribution-to-dsps) – 2026-11-17
+
+### (a) Generated vs written
+- AI generated (Spec Kit): both specs (one batched clarify round, Q1–Q5), plans, research, data
+  models, contract intent, quickstarts, tasks (backend T001–T028, frontend T001–T015), analyze report
+  (A1–A6) and its fixes; the README rule added to both constitutions (v1.2.0) and to the
+  git-workflow and decisions-log skills.
+- AI generated (code): `TrackDistribution`, `DistributionStatus` + `DistributionStatusRules`,
+  `Track.Distribute` / `RecordAnswer`, the `hasDistributions` status rule, distribute and answer
+  commands, endpoints, `TrackDistributionConfiguration` + migration `AddTrackDistributions`,
+  DTO reshape (`canDistribute`, `allowedAnswers`, answer time), unique-key mapping, OpenAPI value list
+  for answers, the README rewritten to the README rule, all new tests (471 total, was 397; 31 on
+  real PostgreSQL).
+- Developer decided: PATCH → distributed is a 409 unless the track has a delivery (changed from the
+  Phase 3 plan after the developer's review); **no data migration** – local databases from before are
+  reset with `docker compose down -v` (the AI had proposed a one-time data fix); the platform count is
+  not hard-coded – up to 20 distinct ids per request; Q2–Q5 as recommended; A1–A6 with A1 adjusted;
+  the README rule (finished product, fixed structure, no phase history).
+- Developer notes (Yousef):
+  - I reviewed the Phase 4 plan before approving it. I asked for no data migration (reset the local database instead), no hard-coded limit of three platforms (any number of existing DSPs, up to 20 distinct ids per request), and for PATCH to "distributed" to be refused with a clear explanation in the README.
+  - I asked for the README to describe the finished product and not the phases, and for that rule to be added to the constitutions and skills.
+
+### (b) Security
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| A track marked distributed without any delivery | `PATCH /api/tracks/{id}/status` | developer (Phase 3 review) | domain rule `Check(from, to, hasDistributions)` → 409; distributed reachable only through Distribute | done |
+| Duplicate deliveries for one platform via concurrent requests | `POST /distribute` | AI design | PK (track, platform) + `xmin` on the track (every delivery change stamps it) → 409; PostgreSQL test; compose: 20 parallel → one row | done |
+| Stale answer or status change overwriting a newer delivery state | answer / distribute / withdraw | AI design | same `xmin` check; PostgreSQL tests "distribute vs withdraw" and "re-send vs stale answer" | done |
+| Oversized id list | `POST /distribute` | AI design | ≤ 20 distinct ids (validator) + 32 KB body cap | done |
+| Unknown platform ids written | `POST /distribute` | AI design | handler checks against stored platforms (400 `dspIds`); FK as the database guard (test) | done |
+| Inconsistent delivery rows written past the API | `track_distributions` | AI design | check constraints: known status; answer time exactly when not pending (tests) | done |
+| Writes without the Admin role | both new endpoints | AI design | `.RequireAdmin()`; 401/403 tests | done |
+
+Deliveries are public on the track detail (platform name, status, times): no personal data.
+
+### (c) Mistakes & fixes
+1. **A check-constraint test broke two constraints at once.** `SET status = 'sent'` left the answer
+   time empty, so PostgreSQL reported the "answered" check instead of the status check. Fix: the
+   statement sets an answer time too, so only the status check can refuse it.
+2. **An old test kept the old rule.** `TrackPersistenceTests` still expected `[draft, distributed]` for
+   a submitted track; only the full run with PostgreSQL caught it. Fixed to `[draft]`.
+3. **A planned race could not happen as written.** A5 asked for "answer (reject) vs re-send on one
+   delivery", but an answer needs a pending delivery and a re-send needs a rejected one. The test
+   races a re-send against a stale answer to another platform of the same track (both stamp the
+   track; the second save is refused). Recorded here instead of claiming the planned case.
+4. **Process: tests first only for the domain.** Domain tests were written before the code; the
+   Application and API tests right after their code in the same step. All ran green before committing.
+5. **Process: a script edit stopped halfway.** Applying the user's changes to the planning docs, my
+   first script failed on one line-wrapped match after the spec was already written; I re-ran the
+   rest and grep-checked every file before committing.
+- Not observed in the compose run: in step 7 all 20 parallel distribute requests answered 200 (the
+  later ones were no-ops), so the 409 path for that race is shown only by the PostgreSQL test.
+
+### Quickstart results (compose, `down -v` + `up --build`)
+- `GET /api/dsps` → Apple Music, Spotify, YouTube Music.
+- PATCH submitted → distributed → 409 "A track becomes distributed when it is sent to at least one
+  platform. Use Distribute to send it."; `allowedNextStatuses` `["draft"]`.
+- Distribute Spotify + Apple Music → 200, distributed, two pending rows by name; again with Spotify +
+  YouTube Music → Spotify unchanged, YouTube Music added.
+- Draft → 409; `[]` → 400 "Choose at least one platform."; unknown id → 400 "Unknown platform: …";
+  21 distinct ids → 400; no token → 401.
+- Spotify live → answer time set; again → 409 "The delivery is already live."; Apple Music rejected →
+  200; `pending` → 400; a platform never sent to → 404.
+- Apple Music sent again → pending, new sent time, answer cleared.
+- 20 parallel distributes of one new platform → 20×200, one row. Distribute + withdraw at once on a
+  submitted track → one 200, one 409; the track ended distributed with one delivery.
+- Anonymous GET → deliveries with names and statuses, no email.
+- 1,000 tracks: detail of a track with three deliveries 7–8 ms (SC-005 < 1 s).
+
+### Frontend (same phase)
+
+**(a) Generated vs written**
+- AI generated: types regenerated from the 005 contract; `DistributionsSection` (table, stacked on
+  phones, answer buttons), `DistributeDialog`, `DistributionStatusBadge`, hand-written `ui/dialog.tsx`,
+  `distributeTrack` / `recordDistributionAnswer` / `listDsps`, mutations and `useDspsQuery`, MSW
+  `serveTrack()` that applies the API's rules, the rewritten track-page tests (214 total, was 200),
+  the phone bottom spacing fix, the README rewritten to the README rule.
+- Removed: "Mark as distributed", its confirmation and `alert-dialog.tsx`, the "without platform
+  deliveries" text (developer decisions above).
+- Developer decided: as in the backend section (no data migration, PATCH → distributed refused,
+  Q5 as recommended, README rule).
+- Developer notes (Yousef):
+  - While testing the app in the browser I found that the dropdown colors were hard to read and clash with the dark theme, and I asked for them to be fixed in the same PR.
+
+**(b) Security**
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| Admin controls shown to visitors | track page | AI design | Distribute and answer buttons only for admins (tests: visitor sees none); the API enforces it anyway | done |
+| Platform names injected as markup | deliveries table, dialog, toasts | AI design | rendered through `UserText` as text (lint bans `dangerouslySetInnerHTML`) | done |
+| Client allowing a move the API refuses | status control, dialog | AI design | buttons come only from `allowedNextStatuses`, `canDistribute`, `allowedAnswers`; "distributed" never offered even if listed (test) | done |
+
+**(c) Mistakes & fixes**
+1. **A staged deletion rode along in a commit (again).** `git rm alert-dialog.tsx` was staged when I
+   committed the API/hook files, so that commit removed a file the old `StatusControl` still imported
+   and did not build. Same slip as Phase 3's staged renames. Found before pushing; soft reset and
+   recommitted as two buildable commits (code, then tests), typechecked at the first one.
+2. **`gen:api` half updated.** My `sed` changed only the first contract path in the script, so the
+   generated file's header still named the 004 contract. Found while rewriting the README; fixed in its
+   own commit, Memory now says to update both paths.
+3. **Test harness kept stale derived fields.** My MSW `serveTrack` rebuilt the track from the old object,
+   so `allowedNextStatuses` and `canDistribute` stayed as before a change; two tests failed for that
+   reason, not because of the app. Fix: drop the derived fields before rebuilding.
+4. **"Already sent" detection.** My first version compared delivery times and called a race "sent";
+   the client cannot tell "I sent it" from "someone else just did". Now: unchanged `updatedAtUtc` →
+   "Already sent to these platforms". Documented in the walkthrough.
+5. **Found in the real browser, not by tests:** at 400 px the "Sent to 2 platforms" toast covered the
+   second delivery's buttons and the page could not scroll further (my script's click hit the toast).
+   Fix: bottom space on phones (`pb-32`). Also my first keyboard check "failed" because the DevTools key
+   event had no `text`; with a real Enter the dialog opens – a script problem, not an app bug.
+
+6. **Unreadable dropdowns – found by the developer in manual testing, not by me.** My browser runs
+   checked page content but never opened a native select list. In dark mode the list was light grey with
+   pale text (measured 1.49:1): Chromium paints the popup from the select's 30%-transparent background
+   composited on white. **First approach (plain CSS): opaque theme colours on every option and
+   `color-scheme` per theme** fixed the list text, but **could not style the highlighted row** – the
+   browser draws it (light grey in Edge, light blue in Chrome/Brave). I reported that and proposed options;
+   the developer chose Chromium's customizable select (`appearance: base-select`) behind `@supports`, with
+   the plain-CSS version as fallback. One shared `NativeSelect` and one CSS block, tokens only; light
+   `--ring` darkened to `#9a6500` (the saffron ring was 2.1–2.5:1 on light surfaces). Measured in Edge
+   dark: list 13.8:1, highlighted row 9.32:1, focus ring 6.06:1; keyboard (Space, arrows, type-ahead,
+   Enter, Escape) and the accessibility tree (combobox + options, expanded) checked in the browser. The
+   full Edge/Chrome/Brave × light/dark × desktop/400 px matrix and the fallback check with the feature
+   disabled were not finished when the developer asked to commit.
+   Also: my first screen captures of native popups grabbed whatever window was in front (the
+   developer's own browser); they were deleted and later captures pinned the test window on top.
+
+**Real-browser results** (compose, fresh database + ~1,000 load-test tracks; Edge over DevTools,
+desktop light + 400 px dark): visitor sees deliveries (Pending/Live/Rejected, times, "Waiting") and no
+controls; admin on a submitted track sees only "Withdraw to draft" and Distribute; Enter opens the
+dialog, Escape closes it and focus returns; send Spotify + Apple Music → "Sent to 2 platforms", both
+pending, badge Distributed; Mark live / Mark rejected with toasts naming the platform; dialog shows
+Apple Music "Send again", Spotify disabled "Live"; send again → pending; last platform → Distribute
+disabled with "Sent to every platform". No horizontal overflow; no app console errors (only an Edge
+built-in extension's). Bundle 202 kB gzip.

@@ -1,4 +1,7 @@
 using System.Reflection;
+using Ardalis.Specification;
+using TrackManagement.Application.Common.Persistence;
+using TrackManagement.Domain.Dsps;
 using TrackManagement.Domain.Artists;
 using TrackManagement.Domain.Tracks;
 
@@ -10,6 +13,15 @@ internal static class TrackTestData
     public static readonly DateTime Now = new(2026, 11, 17, 12, 0, 0, DateTimeKind.Utc);
 
     private static readonly PropertyInfo ArtistProperty = typeof(TrackManagement.Domain.Tracks.Track).GetProperty(nameof(TrackManagement.Domain.Tracks.Track.Artist))!;
+
+    /// <summary>A read repository of platforms answering with <see cref="Dsp.Seed"/> for any specification.</summary>
+    public static IReadRepository<Dsp> Dsps()
+    {
+        var dsps = Substitute.For<IReadRepository<Dsp>>();
+        dsps.ListAsync(Arg.Any<ISpecification<Dsp>>(), Arg.Any<CancellationToken>())
+            .Returns(ci => ((ISpecification<Dsp>)ci[0]).Evaluate(Dsp.Seed).ToList());
+        return dsps;
+    }
 
     public static Artist Artist(string name, string email) => TrackManagement.Domain.Artists.Artist.Create(name, "EG", email, Now);
 
@@ -26,7 +38,8 @@ internal static class TrackTestData
 
         if (status == TrackStatus.Distributed)
         {
-            track.ChangeStatus(TrackStatus.Distributed, Now);
+            // Distributed is reached only by sending the track to a platform.
+            track.Distribute([TrackManagement.Domain.Dsps.Dsp.SpotifyId], Now);
         }
 
         return track;

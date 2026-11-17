@@ -32,7 +32,7 @@ public sealed class TrackConcurrencyTests(PostgresFixture postgres)
         var secondCopy = await second.Set<Track>().SingleAsync(t => t.Id == track.Id, Ct);
 
         // Act: one distributes and saves first; the other withdraws from the stale copy
-        firstCopy.ChangeStatus(TrackStatus.Distributed, Now).IsChanged.ShouldBeTrue();
+        firstCopy.Distribute([TrackManagement.Domain.Dsps.Dsp.SpotifyId], Now).Outcome.ShouldBe(DistributeOutcome.Changed);
         await first.SaveChangesAsync(Ct);
         secondCopy.ChangeStatus(TrackStatus.Draft, Now).IsChanged.ShouldBeTrue(); // allowed from what it saw
         var stale = () => second.SaveChangesAsync(Ct);
