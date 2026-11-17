@@ -10,6 +10,7 @@ using TrackManagement.Application.Common.Security;
 using TrackManagement.Infrastructure.Auth;
 using TrackManagement.Infrastructure.Identity;
 using TrackManagement.Infrastructure.Persistence;
+using TrackManagement.Infrastructure.Persistence.Seeding;
 
 namespace TrackManagement.Infrastructure;
 
@@ -50,6 +51,7 @@ public static class DependencyInjection
         services.AddOptions<AdminOptions>().Bind(configuration.GetSection(AdminOptions.SectionName));
         services.AddAppIdentity();
         services.AddScoped<ISeeder, AdminSeeder>();
+        services.AddScoped<ISeeder, SampleCatalogSeeder>();
 
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.ConfigureOptions<JwtBearerOptionsSetup>();
