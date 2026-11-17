@@ -10,7 +10,7 @@
 
 ## Clarifications
 
-### Session 2026-11-17 (recommended defaults, pending the user's confirmation at the analyze checkpoint)
+### Session 2026-11-17 (recommended defaults; confirmed by the user at the analyze checkpoint)
 
 One batched round for both repos (web app questions in the web app's spec).
 
@@ -18,6 +18,22 @@ One batched round for both repos (web app questions in the web app's spec).
 - Q2: Are editing and deleting tracks part of this phase? → A (recommended): **No.** This phase creates tracks and changes their status (what was asked); editing other fields and deleting are left out and listed as a known limitation.
 - Q3: How is an artist chosen when there are many? → A (recommended): **By typing part of the name.** The artist list gains an optional name search, and a single artist can be read by its identifier (the create-artist response already points to that address, which does not exist yet).
 - Q4: In which order are tracks listed? → A (recommended): **Newest release date first**, then by title ignoring case, so upcoming and recent releases come first.
+
+## Status and distributions (reconciliation with Phase 4)
+
+Status is the catalog workflow an admin moves by hand; distributions (Phase 4) are delivery records,
+one per track and platform. The two meet as follows, and this phase's status change is not altered:
+
+- An admin may mark a submitted track as distributed with the status change alone (assignment
+  requirement). Such a track simply has **no distribution rows**; nothing is invented for it.
+- The track's detail always shows its distributions. For a distributed track without rows the web app
+  says "Marked as distributed without platform deliveries recorded." (draft/submitted: "Not sent to
+  any platform yet.").
+- Phase 4's distribute action accepts submitted **and** distributed tracks (interview answer 7). On a
+  submitted track it creates the rows and moves the status to distributed (through the same domain
+  rule, `Track.ChangeStatus`); on a distributed track it only adds or resets rows, so delivery records
+  can be added after a manual "distributed".
+- Distribution rows never change the status back; distributed stays final.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -229,7 +245,7 @@ of artists; the catalog works without it for small rosters.
 
 ## Assumptions
 
-- Phase 4 adds distributions and the platform statuses; here the list is always empty.
+- Phase 4 adds distributions and the platform statuses; here the list is always empty (see "Status and distributions").
 - Editing other track fields and deleting tracks are out of scope (Q2).
 - Seed data (sample tracks) comes with Phase 5.
 - One artist per track (the assignment's model); featured artists are out of scope.

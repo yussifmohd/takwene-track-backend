@@ -26,7 +26,7 @@ description: "Task list for Phase 3 – Track Catalog with Filters and Status (A
 - [ ] T004 [P] Tests `Domain/Tracks/GenresTests.cs` (exactly the 8 names, exact match only: "r&b", "HipHop", "Pop" refused) and `Domain/Tracks/TrackTests.cs` (Create → draft, trimmed title, normalised ISRC, guards; `ChangeStatus` changes only on allowed moves)
 - [ ] T005 `Domain/Tracks/{Isrc, TrackStatus, TrackStatusRules, Genres, Track}.cs` (`Track : IAuditableEntity`, `Artist` navigation, `uint Version`)
 - [ ] T006 `Infrastructure/Persistence/Configurations/TrackConfiguration.cs` (lengths, `char(12)`, status converter, check constraints, indexes, FK restrict, `Version` `IsRowVersion()`); `DbSet<Track>`; migration `AddTracks` (review SQL: checks, indexes, no `xmin` column added)
-- [ ] T007 [P] Tests `Api/ConcurrencyExceptionHandlerTests.cs` (`DbUpdateConcurrencyException` → 409 ProblemDetails with the reload message) and `UniqueConstraintExceptionHandler` case for `ix_tracks_isrc` → 409 `errors.isrc`
+- [ ] T007 [P] Tests `Api/ConcurrencyExceptionHandlerTests.cs` (`DbUpdateConcurrencyException` → 409 ProblemDetails with the generic "This record was changed by someone else…" message) and `UniqueConstraintExceptionHandler` case for `ix_tracks_isrc` → 409 `errors.isrc`
 - [ ] T008 `ExceptionHandlers/ConcurrencyExceptionHandler.cs` (registered before Global); `ix_tracks_isrc` in `KnownIndexes` (R3, R4)
 - [ ] T009 [P] Integration `Integration/TrackPersistenceTests.cs`: Arabic/mixed title round-trip; check constraints reject a bad genre/status/isrc inserted by SQL; FK restrict; unique ISRC under 10 parallel inserts → 1 row
 - [ ] T010 [P] Integration `Integration/TrackConcurrencyTests.cs`: two contexts change one submitted track (withdraw vs distribute) → one `DbUpdateConcurrencyException`; final state is one of the two, never "draft after distributed"
@@ -52,7 +52,7 @@ description: "Task list for Phase 3 – Track Catalog with Filters and Status (A
 
 ### Tests
 - [ ] T016 [P] [US2] `Application/Tracks/ListTracksQueryValidatorTests.cs` (unknown genre/status, paging) and `TracksPageSpecTests.cs` (each filter, combination, order release date desc → title ignoring case → id, totals match items' filter) on InMemory
-- [ ] T017 [P] [US2] `Api/Tracks/ListTracksEndpointTests.cs` (45 tracks → 20/45/3; filters; unknown artist → empty; `status=published` 400 `errors.status`; `artistId=nope` 400; anonymous allowed)
+- [ ] T017 [P] [US2] `Api/Tracks/ListTracksEndpointTests.cs` (45 tracks → 20/45/3; filters; unknown artist → empty; `status=published` 400 `errors.status`; `artistId=nope` 400; page past the end → empty items with correct totals; anonymous allowed)
 
 ### Implementation
 - [ ] T018 [US2] `Specifications/{TrackFilter, TracksPageSpec, TracksCountSpec}.cs` (shared `ApplyFilter`), `Queries/ListTracks/*`, GET `/api/tracks` with `[AsParameters]` request

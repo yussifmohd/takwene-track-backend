@@ -111,7 +111,8 @@ tests/TrackManagement.UnitTests/
    validator names the field (`errors.status`); typed binding would fail as a generic malformed body.
 3. **Concurrency** (R3): `xmin` system column as concurrency token (Npgsql `IsRowVersion()` on a
    `uint Version`). A lost race → `DbUpdateConcurrencyException` → `ConcurrencyExceptionHandler` → 409
-   "This track was changed by someone else. Reload it and try again." Combined with the domain check
+   "This record was changed by someone else. Reload it and try again." (generic wording – the handler
+   applies to any entity with a concurrency token). Combined with the domain check
    on the freshly loaded row, a distributed track can never go back.
 4. **ISRC** (R4): `Isrc.TryNormalize` accepts `^[A-Z]{2}[A-Z0-9]{3}\d{7}$` after trim + upper case,
    either with all three hyphens at positions 2/6/9 or none; stored `char(12)`; unique index
@@ -137,6 +138,10 @@ tests/TrackManagement.UnitTests/
 11. **Artist search / by id** (R11): `GET /api/artists?search=` (trim, ≤ 100 chars, case-insensitive
     contains on the name, translated with escaping by EF), `GET /api/artists/{id:guid}` (email only
     for admins, as in the list).
+
+12. **Status vs distributions** (spec "Status and distributions"): PATCH stays as required; a track
+    marked distributed by PATCH has no distribution rows. Phase 4's distribute uses
+    `Track.ChangeStatus` for submitted → distributed and only adds rows for distributed tracks.
 
 ## Complexity Tracking
 

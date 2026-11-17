@@ -20,7 +20,8 @@
 ## R3 – Concurrent status changes
 - Decision: Npgsql maps `uint Version` + `IsRowVersion()` to the `xmin` system column (no migration
   column). EF adds `WHERE xmin = @original` to the UPDATE; 0 rows → `DbUpdateConcurrencyException` →
-  `ConcurrencyExceptionHandler` → 409 ProblemDetails. Integration test: two contexts load the same
+  `ConcurrencyExceptionHandler` → 409 ProblemDetails "This record was changed by someone else. Reload it
+  and try again." (generic: the handler covers every entity with a concurrency token). Integration test: two contexts load the same
   submitted track, one withdraws, the other distributes → exactly one save succeeds.
 - InMemory provider also honours concurrency tokens, but the real proof is the Postgres test.
 - Alternatives: `SELECT … FOR UPDATE` (needs explicit transactions in the handler), app-level version
@@ -68,9 +69,9 @@
   Status, UpdatedAtUtc)` – Phase 4 may extend (additive).
 
 ## R10 – Create and change responses
-- POST 201 + Location + detail; PATCH 200 + detail; both read back through `TrackDetailSpec` after the
-  UoW commit? No – the handler builds the DTO from the entity + artist name it already loaded (no
-  second query), `CreatedAtUtc` set in the factory (Phase 2 lesson).
+- POST 201 + Location + detail; PATCH 200 + detail. The handler builds the DTO from the entity and
+  the artist name it already loaded (no second query after the commit); `CreatedAtUtc` is set in the
+  factory so it is in the response before the save (Phase 2 lesson).
 
 ## R11 – Artist search and GET by id
 - `search` trimmed; empty = no filter; > 100 characters → 400. `Name.ToLower().Contains(term.ToLower())`
