@@ -49,6 +49,16 @@ public sealed class UniqueConstraintExceptionHandlerTests
     }
 
     [Fact]
+    public async Task TrackIsrcIndex_Returns409NamingIsrc()
+    {
+        var (handled, status, body) = await HandleAsync(new DbUpdateException("save failed", UniqueViolation("ix_tracks_isrc")));
+
+        handled.ShouldBeTrue();
+        status.ShouldBe(409);
+        body!.RootElement.GetProperty("errors").GetProperty("isrc")[0].GetString().ShouldBe("Another track already uses this ISRC.");
+    }
+
+    [Fact]
     public async Task UnknownIndex_Returns409WithoutFieldErrors()
     {
         var (handled, status, body) = await HandleAsync(new DbUpdateException("save failed", UniqueViolation("ix_something_else")));

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using TrackManagement.Application.Features.Artists.Commands.CreateArtist;
+using TrackManagement.Application.Features.Tracks.Commands.CreateTrack;
 using TrackManagement.Infrastructure.Persistence.Configurations;
 
 namespace TrackManagement.Api.ExceptionHandlers;
@@ -18,6 +19,7 @@ public sealed class UniqueConstraintExceptionHandler(IProblemDetailsService prob
     private static readonly Dictionary<string, (string Field, string Message)> KnownIndexes = new(StringComparer.Ordinal)
     {
         [ArtistConfiguration.NormalizedEmailIndex] = ("email", CreateArtistCommandValidator.DuplicateEmailMessage),
+        [TrackConfiguration.IsrcIndex] = ("isrc", CreateTrackCommandValidator.DuplicateIsrcMessage),
     };
 
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
