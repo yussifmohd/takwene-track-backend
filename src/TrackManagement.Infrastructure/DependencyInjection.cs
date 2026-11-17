@@ -33,7 +33,8 @@ public static class DependencyInjection
 
         services.AddDbContext<AppDbContext>((sp, options) =>
         {
-            var connectionString = sp.GetRequiredService<IOptions<ConnectionStringOptions>>().Value.Default;
+            var connectionString = NpgsqlConnectionStringDefaults.Apply(
+                sp.GetRequiredService<IOptions<ConnectionStringOptions>>().Value.Default);
             options
                 .UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 5))
                 .UseSnakeCaseNamingConvention();

@@ -15,7 +15,7 @@ internal sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<A
             ?? "Host=localhost;Port=5432;Database=trackmgmt;Username=trackmgmt";
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(connectionString)
+            .UseNpgsql(NpgsqlConnectionStringDefaults.Apply(connectionString))
             .UseSnakeCaseNamingConvention()
             .Options;
 
