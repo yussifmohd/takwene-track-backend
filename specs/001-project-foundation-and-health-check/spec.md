@@ -1,12 +1,20 @@
 # Feature Specification: Foundation & Architecture (API service)
 
-**Feature Branch**: `001-foundation`
+**Feature Branch**: `001-project-foundation-and-health-check`
 
 **Created**: 2026-11-17
 
 **Status**: Draft
 
 **Input**: User description: "Phase 0 – Foundation & Architecture. Scaffold the API service with no business features: layered architecture, health status, API documentation, consistent error responses, automated tests, automated checks on pull requests, one-command local startup with a database, and the project documentation skeleton. Proof of life: the stack starts with one command and the web app can show the API health status."
+
+## Clarifications
+
+### Session 2026-11-17
+
+- Q: What should the health status return? → A: A structured response with the overall status, a separate database check result and the check time; unhealthy returns a "service unavailable" status.
+- Q: Which local addresses are used? → A: API at `localhost:8080` (interactive docs under the same address), web app at `localhost:8081`, database reachable only from the local machine on its standard port.
+- Q: Language/direction of user-entered text? → A: The API stores and returns text unchanged (full Unicode, including Arabic script); presentation is the web app's concern.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -118,9 +126,13 @@ both return the standard error format with a correlation identifier and no inter
 ### Functional Requirements
 
 - **FR-001**: The service MUST expose an anonymous health status that reports healthy only when the
-  service and its database are reachable.
+  service and its database are reachable. The response is structured: overall status, a separate
+  result for the database check, and the time of the check. When unhealthy, the response uses a
+  "service unavailable" status code.
 - **FR-002**: The repository MUST start the service and its database with one documented command,
   preparing the database schema automatically when enabled by configuration (enabled for local use).
+  Locally the API is served at `localhost:8080`; the database port is bound to the local machine only.
+- **FR-013**: Text values MUST be stored and returned unchanged in full Unicode (including Arabic script).
 - **FR-003**: The service MUST read every secret (database credentials, token signing key, initial
   admin credentials) from configuration or environment; no real secret may be committed, and an
   example environment file with placeholders MUST be provided.
