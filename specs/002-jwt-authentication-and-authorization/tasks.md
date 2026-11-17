@@ -95,7 +95,7 @@ description: "Task list for Phase 1 – Admin Sign-in & Access Control (API serv
 - [x] T033 [P] `docs/ai-log.md` Phase 1 entry (generated vs written, security table incl. reference issues fixed: lockout, enumeration; mistakes); Phase 0 developer notes added at the start of implementation
 - [x] T034 [P] Repo `Memory.md` (versions, state, trusted proxy ranges config) and master `Memory.md`
 - [x] T035 Full `dotnet test`, `docker compose up --build`, secret scan (`git grep` for password/key patterns, `.env` untracked); mark tasks [X]
-- [ ] T036 Push branch, open PR with `gh pr create` (summary, evidence, checklist); CI green without Node 20 annotation
+- [x] T036 Push branch, open PR with `gh pr create` (summary, evidence, checklist); CI green without Node 20 annotation
 
 ---
 
