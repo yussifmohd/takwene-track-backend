@@ -116,8 +116,8 @@ Identity (`Microsoft.AspNetCore.Identity.EntityFrameworkCore` 10.0.14, MIT) is a
 
 - **Decision**: build `mcr.microsoft.com/dotnet/sdk:10.0.403-alpine3.24`, runtime
   `mcr.microsoft.com/dotnet/aspnet:10.0.14-alpine3.24`, `USER $APP_UID` (non-root), port 8080,
-  `HEALTHCHECK` with busybox `wget -qO- http://localhost:8080/health`. DB `postgres:17.9-alpine`
-  (latest 17.x at implementation if newer and ≥ 2 weeks old), port bound to `127.0.0.1:5432`,
+  `HEALTHCHECK` with busybox `wget -qO- http://localhost:8080/health`. DB `postgres:17.11-alpine3.24` (17.12 was < 2 weeks old)
+  (latest 17.x at implementation if newer and ≥ 2 weeks old), port bound to `127.0.0.1:${POSTGRES_HOST_PORT:-5432}`,
   named volume, `pg_isready` healthcheck. Compose defines network `trackmgmt-net` with an explicit
   `name:` so it is created if missing; the frontend compose joins it as `external`.
 
