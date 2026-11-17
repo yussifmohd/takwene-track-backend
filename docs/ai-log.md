@@ -525,4 +525,50 @@ Deliveries are public on the track detail (platform name, status, times): no per
 - 1,000 tracks: detail of a track with three deliveries 7–8 ms (SC-005 < 1 s).
 
 ### Frontend (same phase)
-_To be added with the frontend PR._
+
+**(a) Generated vs written**
+- AI generated: types regenerated from the 005 contract; `DistributionsSection` (table, stacked on
+  phones, answer buttons), `DistributeDialog`, `DistributionStatusBadge`, hand-written `ui/dialog.tsx`,
+  `distributeTrack` / `recordDistributionAnswer` / `listDsps`, mutations and `useDspsQuery`, MSW
+  `serveTrack()` that applies the API's rules, the rewritten track-page tests (214 total, was 200),
+  the phone bottom spacing fix, the README rewritten to the README rule.
+- Removed: "Mark as distributed", its confirmation and `alert-dialog.tsx`, the "without platform
+  deliveries" text (developer decisions above).
+- Developer decided: as in the backend section (no data migration, PATCH → distributed refused,
+  Q5 as recommended, README rule).
+- Developer wrote/changed: _Developer notes (Yousef): – placeholder –_
+
+**(b) Security**
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| Admin controls shown to visitors | track page | AI design | Distribute and answer buttons only for admins (tests: visitor sees none); the API enforces it anyway | done |
+| Platform names injected as markup | deliveries table, dialog, toasts | AI design | rendered through `UserText` as text (lint bans `dangerouslySetInnerHTML`) | done |
+| Client allowing a move the API refuses | status control, dialog | AI design | buttons come only from `allowedNextStatuses`, `canDistribute`, `allowedAnswers`; "distributed" never offered even if listed (test) | done |
+
+**(c) Mistakes & fixes**
+1. **A staged deletion rode along in a commit (again).** `git rm alert-dialog.tsx` was staged when I
+   committed the API/hook files, so that commit removed a file the old `StatusControl` still imported
+   and did not build. Same slip as Phase 3's staged renames. Found before pushing; soft reset and
+   recommitted as two buildable commits (code, then tests), typechecked at the first one.
+2. **`gen:api` half updated.** My `sed` changed only the first contract path in the script, so the
+   generated file's header still named the 004 contract. Found while rewriting the README; fixed in its
+   own commit, Memory now says to update both paths.
+3. **Test harness kept stale derived fields.** My MSW `serveTrack` rebuilt the track from the old object,
+   so `allowedNextStatuses` and `canDistribute` stayed as before a change; two tests failed for that
+   reason, not because of the app. Fix: drop the derived fields before rebuilding.
+4. **"Already sent" detection.** My first version compared delivery times and called a race "sent";
+   the client cannot tell "I sent it" from "someone else just did". Now: unchanged `updatedAtUtc` →
+   "Already sent to these platforms". Documented in the walkthrough.
+5. **Found in the real browser, not by tests:** at 400 px the "Sent to 2 platforms" toast covered the
+   second delivery's buttons and the page could not scroll further (my script's click hit the toast).
+   Fix: bottom space on phones (`pb-32`). Also my first keyboard check "failed" because the DevTools key
+   event had no `text`; with a real Enter the dialog opens – a script problem, not an app bug.
+
+**Real-browser results** (compose, fresh database + ~1,000 load-test tracks; Edge over DevTools,
+desktop light + 400 px dark): visitor sees deliveries (Pending/Live/Rejected, times, "Waiting") and no
+controls; admin on a submitted track sees only "Withdraw to draft" and Distribute; Enter opens the
+dialog, Escape closes it and focus returns; send Spotify + Apple Music → "Sent to 2 platforms", both
+pending, badge Distributed; Mark live / Mark rejected with toasts naming the platform; dialog shows
+Apple Music "Send again", Spotify disabled "Live"; send again → pending; last platform → Distribute
+disabled with "Sent to every platform". No horizontal overflow; no app console errors (only an Edge
+built-in extension's). Bundle 202 kB gzip.
