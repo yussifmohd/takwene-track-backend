@@ -36,6 +36,35 @@ public sealed class OpenApiContractTests
         served.ShouldBe(committed, "API contract drifted. Run scripts/export-contract.ps1 and commit the result.");
     }
 
+    [Fact]
+    public async Task ServedDocument_ListsTrackValuesOnlyWhereTheyApply()
+    {
+        // Arrange
+        await using var factory = new TestApiFactory("Development");
+        using var client = factory.CreateClient();
+
+        // Act
+        var document = JsonNode.Parse(await client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken))!;
+
+        // Assert
+        var schemas = document["components"]!["schemas"]!;
+        string[] genres = ["Arabic Pop", "Mahraganat", "Khaleeji", "Hip-Hop", "Electronic", "Rap", "R&B", "Rock"];
+        string[] statuses = ["draft", "submitted", "distributed"];
+        Enum(schemas["CreateTrackRequest"]!["properties"]!["genre"]).ShouldBe(genres);
+        Enum(schemas["TrackListItemDto"]!["properties"]!["genre"]).ShouldBe(genres);
+        Enum(schemas["ChangeTrackStatusRequest"]!["properties"]!["status"]).ShouldBe(statuses);
+        Enum(schemas["TrackStatus"]).ShouldBe(statuses);
+        // A distribution's status is not a track status (its values arrive in Phase 4).
+        Enum(schemas["TrackDistributionDto"]!["properties"]!["status"]).ShouldBeEmpty();
+
+        var listParameters = document["paths"]!["/api/tracks"]!["get"]!["parameters"]!.AsArray();
+        Enum(listParameters.Single(p => (string?)p!["name"] == "genre")!["schema"]).ShouldBe(genres);
+        Enum(listParameters.Single(p => (string?)p!["name"] == "status")!["schema"]).ShouldBe(statuses);
+    }
+
+    private static string[] Enum(JsonNode? schema) =>
+        schema?["enum"]?.AsArray().Select(v => (string)v!).ToArray() ?? [];
+
     private static string Normalize(string json)
     {
         var node = JsonNode.Parse(json)!;

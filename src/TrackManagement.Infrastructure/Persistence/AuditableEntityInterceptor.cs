@@ -6,7 +6,7 @@ namespace TrackManagement.Infrastructure.Persistence;
 
 /// <summary>
 /// Fills <see cref="IAuditableEntity"/> timestamps on save: CreatedAtUtc for new entities that did
-/// not set it, UpdatedAtUtc for modified ones. (The interface existed since Phase 0 without anything
+/// not set it, UpdatedAtUtc for modified ones that did not set it. (The interface existed since Phase 0 without anything
 /// filling it.)
 /// </summary>
 public sealed class AuditableEntityInterceptor(TimeProvider timeProvider) : SaveChangesInterceptor
@@ -38,8 +38,9 @@ public sealed class AuditableEntityInterceptor(TimeProvider timeProvider) : Save
             {
                 entry.Entity.CreatedAtUtc = now;
             }
-            else if (entry.State == EntityState.Modified)
+            else if (entry.State == EntityState.Modified && !entry.Property(nameof(IAuditableEntity.UpdatedAtUtc)).IsModified)
             {
+                // Kept when the domain set it (e.g. a status change returns it in the response before the save).
                 entry.Entity.UpdatedAtUtc = now;
             }
         }

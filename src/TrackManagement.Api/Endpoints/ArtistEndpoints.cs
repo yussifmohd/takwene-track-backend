@@ -5,6 +5,7 @@ using TrackManagement.Api.Security;
 using TrackManagement.Application.Common.Security;
 using TrackManagement.Application.Features.Artists;
 using TrackManagement.Application.Features.Artists.Commands.CreateArtist;
+using TrackManagement.Application.Features.Artists.Queries.GetArtist;
 using TrackManagement.Application.Features.Artists.Queries.ListArtists;
 using TrackManagement.Domain.Constants;
 using PagedArtists = TrackManagement.Application.Common.Models.PagedResult<TrackManagement.Application.Features.Artists.ArtistDto>;
@@ -14,8 +15,11 @@ namespace TrackManagement.Api.Endpoints;
 /// <summary>Create-artist body. All fields required; bound here, never onto the entity.</summary>
 public sealed record CreateArtistRequest(string? Name, string? CountryCode, string? Email);
 
-/// <summary>Paging query string. Missing values use the defaults (page 1, 20 per page).</summary>
-public sealed record ListArtistsRequest([FromQuery(Name = "page")] int? Page, [FromQuery(Name = "pageSize")] int? PageSize);
+/// <summary>Paging and search query string. Missing values use the defaults (page 1, 20 per page, everyone).</summary>
+public sealed record ListArtistsRequest(
+    [FromQuery(Name = "page")] int? Page,
+    [FromQuery(Name = "pageSize")] int? PageSize,
+    [FromQuery(Name = "search")] string? Search);
 
 public static class ArtistEndpoints
 {
@@ -25,16 +29,22 @@ public static class ArtistEndpoints
 
         group.MapGet("/", async ([AsParameters] ListArtistsRequest request, ICurrentUser currentUser, ISender sender, CancellationToken cancellationToken) =>
             {
-                // Emails are personal data: only a signed-in admin gets them (reads are otherwise public).
-                var includeEmail = currentUser.IsAuthenticated && currentUser.Roles.Contains(Roles.Admin);
-                var query = new ListArtistsQuery(request.Page ?? 1, request.PageSize ?? PagedArtists.DefaultPageSize, includeEmail);
+                var query = new ListArtistsQuery(request.Page ?? 1, request.PageSize ?? PagedArtists.DefaultPageSize, IsAdmin(currentUser), request.Search);
                 return (await sender.Send(query, cancellationToken)).ToHttpResult();
             })
             .WithName("ListArtists")
-            .WithSummary("List artists by name, page by page (email only for admins)")
+            .WithSummary("List artists by name, page by page, optionally only names containing a search text (email only for admins)")
             .AllowAnonymous()
             .Produces<PagedArtists>()
             .ProducesValidationProblem();
+
+        group.MapGet("/{id:guid}", async (Guid id, ICurrentUser currentUser, ISender sender, CancellationToken cancellationToken) =>
+                (await sender.Send(new GetArtistQuery(id, IsAdmin(currentUser)), cancellationToken)).ToHttpResult())
+            .WithName("GetArtist")
+            .WithSummary("Get one artist (email only for admins)")
+            .AllowAnonymous()
+            .Produces<ArtistDto>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapPost("/", async (CreateArtistRequest request, ISender sender, CancellationToken cancellationToken) =>
             {
@@ -51,4 +61,7 @@ public static class ArtistEndpoints
 
         return app;
     }
+
+    /// <summary>Emails are personal data: only a signed-in admin gets them (reads are otherwise public).</summary>
+    private static bool IsAdmin(ICurrentUser currentUser) => currentUser.IsAuthenticated && currentUser.Roles.Contains(Roles.Admin);
 }

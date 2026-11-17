@@ -333,3 +333,120 @@ email; anonymous create → 401; malformed JSON and `page=abc` → 400; `pageSiz
   override ("Palestine", following ISO 3166-1 "Palestine, State of") and a test.
 - **Walkthrough overclaim corrected:** the walkthrough section for frontend PR #3 now carries the same
   correction as the ai-log entry above (real edge cases, not shown to be the reported cause).
+
+## Phase 3 – Tracks (004-track-catalog-with-filters-and-status / 004-track-catalog-with-filters-and-status) – 2026-11-17
+
+### (a) Generated vs written
+- AI generated (Spec Kit): both specs (one batched clarify round, Q1–Q5), plans, research, data
+  models, contract intent, quickstarts, tasks (backend T001–T031, frontend T001–T024), analyze report
+  and its fixes.
+- AI generated (code): `Track` entity, `TrackStatusRules`, `Isrc`, `Genres`, track configuration and
+  migration (`xmin` concurrency token, check constraints), create/list/get/change-status use cases,
+  artist search and GET by id, `ConcurrencyExceptionHandler`, ISRC case in the unique-index handler,
+  OpenAPI value lists for genre/status, interceptor change, all new tests (397 total, was 239; 24 on
+  real PostgreSQL).
+- Developer decided: Q1–Q5 as recommended; all analyze fixes; how a manual "distributed" fits Phase 4
+  (PATCH unchanged; such a track has no distribution rows and the detail says so).
+- Developer wrote/changed: _Developer notes (Yousef):_ <!-- to be written by Yousef -->
+
+### (b) Security
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| Lost update: two admins change one track, a distributed track goes back to draft | `PATCH /api/tracks/{id}/status` | AI design (spec FR-008) | domain check on the loaded row + `xmin` row version → 409; PostgreSQL test and compose run (10 parallel withdraw/distribute pairs → always one 200, one 409) | done |
+| Duplicate ISRC via concurrent requests | create track | AI design | validator pre-check + unique index → same 409 `errors.isrc`; compose: 20 parallel → 1×201, 19×409 | done |
+| Wildcard injection in artist search | `GET /api/artists?search=` | AI design | `Contains` → `strpos` (no LIKE); `%`/`_` literal (tests); 100-character cap | done |
+| Artist email leak through the new GET by id | `GET /api/artists/{id}` | AI design | same admin-only projection as the list; test with and without an admin token | done |
+| Invalid data written past the validators | `tracks` | AI design | check constraints on ISRC shape, genre and status; FK restrict (PostgreSQL tests) | done |
+
+### (c) Mistakes & fixes
+1. **Contract listed track statuses on the distribution's `status`.** My first OpenAPI transformer
+   added the enum to every string property named `status`, so `TrackDistributionDto.status` (pending/
+   live/rejected in Phase 4) was typed as draft/submitted/distributed. Found by reading the exported
+   contract. Fix: limit "status" to the track request/query types; new test
+   `ServedDocument_ListsTrackValuesOnlyWhereTheyApply` asserts where the lists appear and where not.
+2. **A wrong test input.** The check-constraint test for the ISRC used a 13-character value, so
+   PostgreSQL refused it as too long for `char(12)` before the check ran (`ConstraintName` was null).
+   Fix: a 12-character lower-case value that only the check constraint refuses.
+3. **Unchecked parse result.** The create handler called `TryParseReleaseDate` without checking it;
+   the analyzer (CA1806, warnings as errors) stopped the build. Fix: refuse explicitly instead of
+   storing a default date.
+4. **Process: tests were not always written before the code.** The tasks list tests first; for the
+   Application and API layers I wrote each layer's tests right after its code, in the same step.
+   All tests were run and passed before committing, but test-first was not followed literally.
+5. **Process: one commit does not build on its own.** The PostgreSQL test commit uses the list
+   specifications that arrive in the next commit. The branch tip builds and passes; history was not
+   rewritten.
+- Found while implementing (design gap, not shipped): the audit interceptor overwrote every
+  `UpdatedAtUtc` on save, so the PATCH response (built before the save) would differ from the stored
+  time. Fix: the interceptor keeps a value the domain set (test added).
+
+### Quickstart results (compose, `down -v` + `up --build`)
+- Create with `eg-a1b-26-00001` → 201, `EG-A1B-26-00001`, draft, `allowedNextStatuses: [submitted]`,
+  `distributions: []`; anonymous GET of the `Location` → 200.
+- Duplicate in another form → 409 `errors.isrc`; 20 parallel creates with one new ISRC → 1×201, 19×409.
+- Bad values → 400 naming title, artistId, isrc, genre, releaseDate.
+- Status walk: draft→distributed 409, →submitted, →draft, →submitted, →distributed 200, →draft 409
+  "final", "published" 400, no token 401.
+- 10 rounds of parallel withdraw + distribute on a submitted track: always one 200 and one 409 (6 ended
+  distributed, 4 draft – whichever saved first); never back from distributed.
+- Filters: `status=published` 400, `artistId=nope` 400, unknown artist → total 0.
+- 1,013 tracks: slowest filtered page 37 ms (SC-004 < 1 s).
+- Arabic title unchanged after the walk.
+
+### Frontend (same phase)
+
+**(a) Generated vs written**
+- AI generated: the frontend spec, plan, research, tasks (T001–T024); API types from the 004 contract;
+  ISRC and date helpers, genre/status lists typed against the contract, tracks API module, filter hook
+  (URL), queries and mutations, catalogue page with filters and list, `StatusBadge`, track page with
+  `StatusControl` (confirm dialog) and `DistributionsSection`, Add track page with zod schema,
+  `ArtistPicker` combobox, header `StatusDot`, `/status` page, hand-written shadcn alert dialog,
+  README/walkthrough sections, all new tests (200 total, was 132), and throwaway seed and real-browser
+  scripts (not committed).
+- Developer decided: Q1–Q5 as recommended (all statuses public, no edit/delete, artist search, order,
+  confirm before distributed); the wording for a track distributed without deliveries.
+- Developer wrote/changed: _Developer notes (Yousef):_ <!-- to be written by Yousef -->
+
+**(b) Security**
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| Status changes offered to visitors | track page | AI design | control rendered only for admins; the API still requires Admin (401/403); tested | done |
+| Add track reachable by non-admins | `/tracks/new` | AI design | `RequireAuth` + `handle.requiresRole` ("Only admins can add tracks"); tested | done |
+| Unvalidated values from the address sent to the API | catalogue filters | AI design | `useTrackFilters` drops unknown status/genre and non-GUID artist ids before any request; tested | done |
+| Script injection via titles / artist names | list, track page, picker, toasts | Phase 0 rule | rendered only as text through `UserText` (no HTML) | done |
+| Sign-in page promised edit/delete of tracks that don't exist | login page | AI (Phase 1 copy) | list rewritten to what admins can do today | done |
+
+**(c) Mistakes & fixes**
+- **Commits that did not build on their own (caught before pushing).** File renames made with
+  `git mv` earlier were already staged, so they rode along in the first commit (API types), leaving it
+  importing a renamed page. The branch was not pushed yet; I soft-reset to the last planning commit and
+  recommitted in buildable steps. Lesson: check `git status` for staged renames before the first commit.
+- **Setting state inside an effect** in the artist picker (to show the selected name) – the
+  react-hooks lint rule refused it; replaced with adjusting state during render. That replacement was
+  itself wrong (next entry).
+- **Clear filters left the artist in the field (found by the developer, after the PR was opened).**
+  With a status and an artist selected, Clear filters emptied the address and the other filters, but
+  the Artist field still showed the name. Cause: the picker kept its own copy of the selected name and
+  synced it from props. Clicking Clear first blurred the field, whose handler queued "show the selected
+  name"; the address change runs as a router transition, and React replayed the queued update over the
+  cleared value. My tests missed it because the sample artist ids were not GUIDs, so the filter never
+  took the artist in tests; the browser run never pressed Clear with an artist chosen. Fix: no copy –
+  the field shows typed text only while typing, otherwise the selected name derived on each render;
+  the filters remember a just-picked name. Regression test with GUID ids fails on the old picker;
+  re-checked in the browser (clear, Back restores the artist, × on the field).
+- **"Tracks" not highlighted on a track page.** `NavLink to="/"` never matches `/tracks/:id`; a test
+  caught it, and the link now computes its own current state.
+- **Two timing-sensitive tests** after `/` started loading the catalogue: the session-expiry test
+  (300 ms session, header checked before React had drawn `/login`) failed about one run in three under
+  the full suite. Not an app bug; the test got more margin and waits for the render. Found by running
+  the suite three times, as planned.
+- **My first browser script used an ISRC that wasn't a duplicate** (the seed gave that track year 96),
+  so it created a stray track instead of testing the 409; script fixed, the stray row stayed in the
+  local data only.
+
+**Real-browser results** (compose, 28 artists, 24 tracks; Edge over DevTools, desktop light + 400 px
+dark): catalogue, filters in the address (invalid ones ignored), artist search in Arabic and pick,
+reload keeps the artist's name, track page, unknown track, sign-in from Add track and back, empty submit
+(focus on Title), picker lists the first 10, duplicate ISRC under ISRC, create → track page + toast,
+submit, confirm dialog, distributed (final, "without platform deliveries recorded"), paging, status
+dot → `/status`, sign-out → `/login`. No horizontal overflow; no app console errors. Bundle 200.7 kB gzip.

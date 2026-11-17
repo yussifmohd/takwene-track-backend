@@ -33,13 +33,15 @@ public static class ApiServiceCollectionExtensions
         // Order matters: the first handler that recognises the exception answers.
         services.AddExceptionHandler<BadRequestExceptionHandler>();
         services.AddExceptionHandler<UniqueConstraintExceptionHandler>();
+        services.AddExceptionHandler<ConcurrencyExceptionHandler>();
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddRequestBodyLimit(configuration);
 
         services.AddOpenApi("v1", options => options
             .AddDocumentTransformer<BearerSecuritySchemeTransformer>()
             .AddOperationTransformer<AuthorizeOperationTransformer>()
-            .AddSchemaTransformer<OmittedWhenNullSchemaTransformer>());
+            .AddSchemaTransformer<OmittedWhenNullSchemaTransformer>()
+            .AddSchemaTransformer<FixedValuesSchemaTransformer>());
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpCurrentUser>();

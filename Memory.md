@@ -22,6 +22,9 @@
 - Errors: `BadRequestExceptionHandler` (malformed input → 400/413 in every env) → `UniqueConstraintExceptionHandler` → `GlobalExceptionHandler`. Body cap `Api:MaxRequestBodyBytes` 32 KB.
 - Logging: `UseSerilog(..., preserveStaticLogger: true)` (one logger per host) and request logging first in the pipeline with the host logger, so it logs the status the client got.
 - Startup refuses a non-UTF8 database (`DatabaseEncodingCheck`).
+- Tracks (Phase 3): rules only in `TrackStatusRules` (`Track.ChangeStatus` returns `StatusChange`, handler → `Result.Conflict`). Detail lists `allowedNextStatuses`. `Track.Version` = `xmin` (`IsRowVersion`), lost race → `ConcurrencyExceptionHandler` 409 (generic message). ISRC `char(12)` + `ix_tracks_isrc` (unique handler → `errors.isrc`). Genre/status/date bound as strings → validator 400 per field; `FixedValuesSchemaTransformer` adds enums only on track request/query members. Interceptor keeps a domain-set `UpdatedAtUtc`.
+- Status vs distributions (Phase 4 plan): PATCH to distributed creates no distribution rows (detail shows "Marked as distributed without platform deliveries recorded."); Phase 4 distribute accepts submitted + distributed — on submitted creates rows and moves status via `Track.ChangeStatus`; on distributed only adds/resets rows. Rows never change the status back.
+- Artists: `?search=` (substring, `strpos`) and `GET /api/artists/{id}` (email admin-only).
 - Integration tests: `tests/.../Integration`, `[Collection(PostgresDatabase.Name)]` + `[Trait("Category","Integration")]`, Testcontainers `postgres:17.11-alpine3.24`; fixture must pin the Identity schema like design time. Skip with `-- --filter-not-trait "Category=Integration"`; CI runs all.
 - EF migrations are generated code (`.editorconfig`); the Dockerfile copies `.editorconfig` so the image builds with the same analyzer rules.
 - API tests: `TestApiFactory` seeds the admin; test-only `/test/admin-only` + `/test/public` live there (excluded from OpenAPI); `X-Test-Client-IP` sets the remote IP.
@@ -36,4 +39,5 @@ Identity.EntityFrameworkCore 10.0.14 · Testcontainers.PostgreSql 4.16.0 (MIT; t
 - Phase 0 (`001-project-foundation-and-health-check`): implemented; health on `/health` + `/api/health`, empty InitialCreate migration, Docker, CI.
 - Phase 1 (`002-jwt-authentication-and-authorization`): login + me, lockout, rate limit, Admin policy, admin seeding, CI on Node 24 actions, GSS log fix; 127 tests.
 - Phase 2 (`003-artists-and-dsps-management`): artists (create admin-only, public paged list, email admin-only), DSPs (3, fixed ids), UTF-8 check, audit timestamps, malformed → 400, body cap, Serilog per-host fix; 239 tests (13 PostgreSQL).
-- Next: Phase 3 – tracks (`004-track-catalog-with-filters-and-status`).
+- Phase 3 (`004-track-catalog-with-filters-and-status`): tracks (create admin, public filtered list + detail, status PATCH with domain rules + xmin), artist search/GET by id; 397 tests (24 PostgreSQL).
+- Next: Phase 4 – distribution (`005-track-distribution-to-dsps`).

@@ -9,6 +9,7 @@ public static class EndpointRouteBuilderExtensions
         app.MapAuthEndpoints();
         app.MapArtistEndpoints();
         app.MapDspEndpoints();
+        app.MapTrackEndpoints();
         return app;
     }
 }
