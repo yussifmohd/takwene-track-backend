@@ -42,6 +42,14 @@ services:
       Jwt__Issuer: ${JWT__ISSUER:-trackmgmt-api}
       Jwt__Audience: ${JWT__AUDIENCE:-trackmgmt-web}
       Jwt__ExpirationMinutes: ${JWT__EXPIRATIONMINUTES:-60}
+      # The single admin account, created on first start if missing (never committed; see .env).
+      Admin__Email: ${ADMIN__EMAIL:?Set ADMIN__EMAIL in .env}
+      Admin__Password: ${ADMIN__PASSWORD:?Set ADMIN__PASSWORD in .env (12+ chars, upper, lower, digit, symbol)}
+      # Proxies whose X-Forwarded-For is trusted (CIDR). Here: Docker's private range, where the web
+      # container's nginx runs. On AWS set the load balancer's VPC CIDR instead.
+      ReverseProxy__KnownNetworks__0: ${REVERSE_PROXY_KNOWN_NETWORK:-172.16.0.0/12}
+      RateLimiting__Login__PermitLimit: ${RATE_LIMIT_LOGIN_PERMIT_LIMIT:-10}
+      RateLimiting__Login__WindowSeconds: ${RATE_LIMIT_LOGIN_WINDOW_SECONDS:-60}
       Cors__AllowedOrigins__0: http://localhost:8081
       Cors__AllowedOrigins__1: http://localhost:5173
     ports:
