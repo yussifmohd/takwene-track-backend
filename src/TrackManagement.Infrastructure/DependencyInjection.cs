@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using TrackManagement.Application.Common.Persistence;
+using TrackManagement.Application.Common.Security;
 using TrackManagement.Infrastructure.Auth;
+using TrackManagement.Infrastructure.Identity;
 using TrackManagement.Infrastructure.Persistence;
 
 namespace TrackManagement.Infrastructure;
@@ -39,6 +42,14 @@ public static class DependencyInjection
                 .UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 5))
                 .UseSnakeCaseNamingConvention();
         });
+
+        services.AddOptions<AdminOptions>().Bind(configuration.GetSection(AdminOptions.SectionName));
+        services.AddAppIdentity();
+        services.AddScoped<ISeeder, AdminSeeder>();
+
+        services.AddSingleton<IJwtTokenService, JwtTokenService>();
+        services.ConfigureOptions<JwtBearerOptionsSetup>();
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
         services.AddScoped(typeof(IReadRepository<>), typeof(EfRepository<>));
