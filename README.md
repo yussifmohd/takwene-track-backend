@@ -134,9 +134,48 @@ curl -s -X POST localhost:8080/api/artists -H "Authorization: Bearer <token>" -H
 curl -s "localhost:8080/api/artists?page=1&pageSize=20"
 ```
 
+## Tracks
+
+| Method | Route | Who | Notes |
+|---|---|---|---|
+| `GET` | `/api/tracks?artistId=&genre=&status=&page=1&pageSize=20` | anyone | newest release first, then title; filters optional, combined with AND |
+| `GET` | `/api/tracks/{id}` | anyone | full track, `allowedNextStatuses`, `distributions` (empty until Phase 4) |
+| `POST` | `/api/tracks` | Admin | `{ "title", "artistId", "isrc", "genre", "releaseDate" }` → `201` + `Location`; starts as `draft` |
+| `PATCH` | `/api/tracks/{id}/status` | Admin | `{ "status": "submitted" }` → `200` + the updated track |
+| `GET` | `/api/artists?search=amr` | anyone | artist name contains the text, ignoring case (for the web app's artist picker) |
+| `GET` | `/api/artists/{id}` | anyone | one artist; email only for admins |
+
+- **ISRC** (ISO 3901, `CC-XXX-YY-NNNNN`): 2 letters, 3 letters/digits, 2 digits, 5 digits. Accepted
+  in any case with all three hyphens or none (`eg-a1b-26-00001`, `EGA1B2600001`); stored as 12
+  characters without hyphens, unique; always returned hyphenated. A duplicate is `409` with
+  `errors.isrc`, also when two requests race (unique index).
+- **Genre**: exactly one of Arabic Pop, Mahraganat, Khaleeji, Hip-Hop, Electronic, Rap, R&B, Rock.
+- **Release date**: `YYYY-MM-DD`, 1900–2100, future dates allowed.
+- **Status rules** (enforced by the `Track` entity):
+
+  | From \ To | draft | submitted | distributed |
+  |---|---|---|---|
+  | draft | 409 (same) | ✅ submit | 409 (submit first) |
+  | submitted | ✅ withdraw | 409 (same) | ✅ |
+  | distributed | 409 (final) | 409 (final) | 409 (same) |
+
+  Unknown values (`"published"`) are `400` with `errors.status`. Two admins changing the same track
+  at once: one wins, the other gets `409` "This record was changed by someone else. Reload it and try
+  again." (PostgreSQL `xmin` row version).
+- **Status vs distributions**: marking a track distributed with `PATCH` does not create distribution
+  records; such a track has an empty `distributions` list. Phase 4's distribute action adds records
+  (see `specs/004-…/spec.md`, "Status and distributions").
+
+```bash
+curl -s -X POST localhost:8080/api/tracks -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+  -d '{"title":"تملي معاك","artistId":"<artist id>","isrc":"EG-A1B-26-00001","genre":"Arabic Pop","releaseDate":"2026-12-01"}'
+curl -s -X PATCH localhost:8080/api/tracks/<id>/status -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d '{"status":"submitted"}'
+curl -s "localhost:8080/api/tracks?status=submitted&genre=R%26B"
+```
+
 ### Unicode (Arabic names)
 
-Names are stored and returned exactly as entered (only outer spaces are trimmed); length limits count
+Names and track titles are stored and returned exactly as entered (only outer spaces are trimmed); length limits count
 characters, not bytes, so an emoji counts as one. The database must be UTF-8: compose creates it with
 `--encoding=UTF8 --locale=C.UTF-8`, and on startup (after migrations) the API refuses to run against a
 database with any other encoding. For your own PostgreSQL: `CREATE DATABASE trackmgmt ENCODING 'UTF8' TEMPLATE template0;`
