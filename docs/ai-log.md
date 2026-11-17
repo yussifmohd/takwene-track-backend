@@ -347,7 +347,9 @@ email; anonymous create → 401; malformed JSON and `page=abc` → 400; `pageSiz
   real PostgreSQL).
 - Developer decided: Q1–Q5 as recommended; all analyze fixes; how a manual "distributed" fits Phase 4
   (PATCH unchanged; such a track has no distribution rows and the detail says so).
-- Developer wrote/changed: _Developer notes (Yousef):_ <!-- to be written by Yousef -->
+- Developer wrote/changed: _Developer notes (Yousef):_
+  - "I reviewed the Phase 3 plan before approving it, accepted the five recommended answers, and asked Claude to merge backend PR #4 first so the AI log would not conflict."
+  - "I raised the risk that PATCH status could set "distributed" without any DSP delivery, which would clash with Phase 4's distribute endpoint, and asked for the reconciliation to be written down in the spec."
 
 ### (b) Security
 | Issue | Where | Introduced/found by | Handling | Status |
@@ -405,7 +407,9 @@ email; anonymous create → 401; malformed JSON and `page=abc` → 400; `pageSiz
   scripts (not committed).
 - Developer decided: Q1–Q5 as recommended (all statuses public, no edit/delete, artist search, order,
   confirm before distributed); the wording for a track distributed without deliveries.
-- Developer wrote/changed: _Developer notes (Yousef):_ <!-- to be written by Yousef -->
+- Developer wrote/changed: _Developer notes (Yousef):_
+  - "While testing the Phase 3 UI in the browser I found that the artist field was not cleared by "Clear filters". Claude fixed it in PR #6."
+  - "During testing I also noticed that "Mark as distributed" doesn't record which DSP the track went to, so I asked for it to be addressed in Phase 4."
 
 **(b) Security**
 | Issue | Where | Introduced/found by | Handling | Status |
