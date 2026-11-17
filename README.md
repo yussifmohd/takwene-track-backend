@@ -7,7 +7,7 @@ YouTube Music). The web app lives in a separate repo:
 - Design decisions and AI usage: `DECISIONS.md` (Phase 5) and [docs/ai-log.md](docs/ai-log.md)
 - Specs per phase: [specs/](specs/)
 
-> Status: Phase 0 (foundation + health check). Business features arrive in later phases.
+> Status: Phase 2 – health check, admin sign-in, artists and DSPs. Tracks and distribution arrive in later phases.
 
 ## Stack
 
@@ -67,6 +67,7 @@ than 32 characters, or (with migrate-on-startup on) the admin email/password is 
 | `Admin__Email` / `Admin__Password` | – | the one admin account; created on startup if missing, never changed afterwards |
 | `ReverseProxy__KnownNetworks__0..n` | none (compose: `172.16.0.0/12`) | CIDR ranges of proxies whose `X-Forwarded-For` is trusted |
 | `RateLimiting__Login__PermitLimit` / `__WindowSeconds` | 10 / 60 | sign-in attempts per client IP per window |
+| `Api__MaxRequestBodyBytes` | 32768 | larger request bodies get `413` ProblemDetails |
 
 No secrets are committed: `appsettings*.json` contain none and `.env` is gitignored.
 
@@ -111,6 +112,35 @@ anyone fake it. `X-Forwarded-For` is honoured **only** when the request comes fr
 
 An invalid CIDR stops startup with a message naming the setting.
 
+## Artists and DSPs
+
+| Method | Route | Who | Notes |
+|---|---|---|---|
+| `GET` | `/api/artists?page=1&pageSize=20` | anyone | ordered by name (ignoring case), then oldest first; `pageSize` 1–50 |
+| `POST` | `/api/artists` | Admin | `{ "name", "countryCode", "email" }` → `201` + `Location` |
+| `GET` | `/api/dsps` | anyone | Apple Music, Spotify, YouTube Music (fixed ids, created by the migration) |
+
+- **The public artist list hides emails.** Artists are real people, so the `email` field is only
+  included when the caller is a signed-in admin; for everyone else it is left out of the JSON.
+- **Validation**: name required, 1–200 characters in any script; country an officially assigned
+  ISO 3166-1 alpha-2 code (`eg` → `EG`; `UK`, `EU`, `XK` are refused); email required, valid,
+  at most 254 characters, unique ignoring letter case and outer spaces.
+- **Errors**: `400` lists each invalid field; a duplicate email is `409` with `errors.email`
+  (also when two requests race: the unique index catches it); malformed JSON or non-numeric paging
+  is `400` in every environment; bodies over 32 KB are `413`.
+
+```bash
+curl -s -X POST localhost:8080/api/artists -H "Authorization: Bearer <token>" -H "Content-Type: application/json"   -d '{"name":"عمرو دياب","countryCode":"EG","email":"booking@example.com"}'
+curl -s "localhost:8080/api/artists?page=1&pageSize=20"
+```
+
+### Unicode (Arabic names)
+
+Names are stored and returned exactly as entered (only outer spaces are trimmed); length limits count
+characters, not bytes, so an emoji counts as one. The database must be UTF-8: compose creates it with
+`--encoding=UTF8 --locale=C.UTF-8`, and on startup (after migrations) the API refuses to run against a
+database with any other encoding. For your own PostgreSQL: `CREATE DATABASE trackmgmt ENCODING 'UTF8' TEMPLATE template0;`
+
 ## Migrations
 
 ```bash
@@ -123,11 +153,16 @@ ConnectionStrings__Default="Host=localhost;..." dotnet ef database update -p src
 ## Tests
 
 ```bash
-dotnet test --solution TrackManagement.slnx
+dotnet test --solution TrackManagement.slnx                                           # everything (needs Docker)
+dotnet test --solution TrackManagement.slnx -- --filter-not-trait "Category=Integration"  # without Docker
+dotnet test --solution TrackManagement.slnx -- --filter-trait "Category=Integration"      # only the PostgreSQL tests
 ```
 
-Tests run on Microsoft.Testing.Platform (configured in `global.json`). API-level tests host the
-app in memory with EF InMemory, so no database is needed.
+Tests run on Microsoft.Testing.Platform (configured in `global.json`). Unit and API-level tests host
+the app in memory with EF InMemory, so they need no database. Tests marked
+`[Trait("Category", "Integration")]` start a real PostgreSQL 17 (same image as compose) with
+Testcontainers, so they need Docker: Unicode round-trips, the unique email index, SQL ordering,
+audit timestamps, the seeded DSPs and the UTF-8 startup check. CI runs both.
 
 ### API contract
 
@@ -135,13 +170,14 @@ app in memory with EF InMemory, so no database is needed.
 A test compares it with the document the API serves and fails on drift. To update it:
 
 ```powershell
-./scripts/export-contract.ps1 -Feature 001-project-foundation-and-health-check
+./scripts/export-contract.ps1 -Feature 003-artists-and-dsps-management
 ```
 
 ## CI
 
 `.github/workflows/backend-tests.yml` runs on every pull request to `main`: locked restore,
-Release build, tests with TRX and Cobertura coverage (uploaded as artifacts).
+Release build, all tests (including the PostgreSQL integration tests; the runner has Docker) with TRX
+and Cobertura coverage (uploaded as artifacts).
 
 To make it a merge gate: **Settings → Branches → Add rule** for `main` → *Require status checks to
 pass* → select `test` (from `backend-tests`).
@@ -150,10 +186,10 @@ pass* → select `test` (from `backend-tests`).
 
 ```text
 src/
-  TrackManagement.Domain/          entities, constants (no dependencies)
+  TrackManagement.Domain/          entities (Artist, Dsp), country codes, constants (no dependencies)
   TrackManagement.Application/     CQRS messages, behaviors, repository/UoW abstractions
   TrackManagement.Infrastructure/  EF Core, repositories, Unit of Work, options, migrations
   TrackManagement.Api/             Minimal API endpoints, ProblemDetails, OpenAPI, health
-tests/TrackManagement.UnitTests/   unit + in-memory API tests (folders mirror src)
+tests/TrackManagement.UnitTests/   unit + in-memory API tests (folders mirror src); Integration/ = PostgreSQL via Testcontainers
 specs/                             Spec Kit spec / plan / tasks per phase
 ```
