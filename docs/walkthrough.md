@@ -125,3 +125,68 @@ the token. Tests: `dotnet test --solution TrackManagement.slnx` (127 tests at th
 - Rate-limit counters are in memory per instance (two EC2 instances in Phase 6 → per-instance limits).
 - First start on an empty database logs one benign EF `ERR` for the migrations-history query;
   ASP.NET Data Protection warns about container key storage (not used by this API).
+
+## Phase 2 – Artists & DSPs (`003-artists-and-dsps-management`)
+
+### What was built
+Artists (name in any script, ISO country code, required unique email) that only an admin can add
+and anyone can list page by page; the three distribution platforms created by the migration with
+fixed ids; a UTF-8 startup check; timestamps filled automatically; 400 for malformed requests in
+every environment; a 32 KB body cap; integration tests on real PostgreSQL.
+
+### Important files
+| Path | What it does |
+|---|---|
+| `src/TrackManagement.Domain/Countries/CountryCodes.cs` | The 249 assigned ISO 3166-1 alpha-2 codes, `Normalize`, `IsAssigned`, and the list hash the web app checks too. |
+| `src/TrackManagement.Domain/Artists/Artist.cs` | Entity + `Create` (trims, upper-cases the country, normalised email for the unique index). |
+| `src/TrackManagement.Domain/Dsps/Dsp.cs` | The fixed platform ids and `Dsp.Seed`. |
+| `src/TrackManagement.Application/Common/Validation/` | `TextRules` (code-point length, email format shared with login), `PagingRules`, `ValidationErrorCodes.Conflict`. |
+| `src/TrackManagement.Application/Features/Artists/` | `ArtistDto` (email omitted when null), specs (`ArtistsPageSpec` projects and orders by `lower(name)`), `CreateArtist` and `ListArtists`. |
+| `src/TrackManagement.Application/Features/Dsps/` | `ListDspsQuery` + spec. |
+| `src/TrackManagement.Infrastructure/Persistence/Configurations/{Artist,Dsp}Configuration.cs` | Columns, unique indexes, `HasData` for the platforms. |
+| `src/TrackManagement.Infrastructure/Persistence/AuditableEntityInterceptor.cs` | Fills `CreatedAtUtc`/`UpdatedAtUtc` on save. |
+| `src/TrackManagement.Infrastructure/Persistence/DatabaseEncodingCheck.cs` | Stops startup unless the database is UTF8. |
+| `src/TrackManagement.Infrastructure/Persistence/Migrations/*_AddArtistsAndDsps.cs` | `artists`, `dsps`, indexes, the three platforms. |
+| `src/TrackManagement.Api/Endpoints/{Artist,Dsp}Endpoints.cs` | `GET/POST /api/artists`, `GET /api/dsps`. |
+| `src/TrackManagement.Api/Extensions/ResultExtensions.cs` | Conflict-only validation errors → 409; `ToCreatedAtHttpResult` (201 + Location + body). |
+| `src/TrackManagement.Api/ExceptionHandlers/{BadRequest,UniqueConstraint}ExceptionHandler.cs` | Malformed input → 400/413; unique-index race → 409 `errors.email`. |
+| `src/TrackManagement.Api/Security/RequestBodyLimit.cs` | `Api:MaxRequestBodyBytes` (32 KB) in Kestrel + a Content-Length guard. |
+| `src/TrackManagement.Api/OpenApi/OmittedWhenNullSchemaTransformer.cs` | Keeps omitted-when-null fields (artist email) optional in the contract. |
+| `tests/TrackManagement.UnitTests/Integration/` | `PostgresFixture` (Testcontainers, same image as compose) and `ArtistPersistenceTests` (`Category=Integration`). |
+
+### Request flow: `POST /api/artists`
+1. Request logging (outermost, logs the final status) → exception handler → body limit → CORS →
+   authentication → authorization: no token 401, no Admin role 403.
+2. `ArtistEndpoints` binds `CreateArtistRequest` (malformed JSON → `BadRequestExceptionHandler` → 400)
+   and sends `CreateArtistCommand`.
+3. `ValidationBehavior` runs `CreateArtistCommandValidator`: name, country, email, then the duplicate
+   check (`ArtistByNormalizedEmailSpec`, error code `conflict`). Field errors → 400; only a conflict → 409.
+4. `CreateArtistCommandHandler` builds the artist with the current time and adds it (no save).
+5. `UnitOfWorkBehavior` saves; the interceptor fills timestamps; a racing duplicate hits the unique
+   index → `UniqueConstraintExceptionHandler` → 409.
+6. 201 with `Location: /api/artists/{id}` and the artist.
+
+`GET /api/artists`: paging validated (page ≥ 1, size 1–50) → count + one projected page ordered by
+`lower(name)`, creation time, id; `email` is selected only when `ICurrentUser` is an admin.
+
+### Key decisions and why
+- **Email hidden from the public list**: artists are real people and reads are public.
+- **Duplicate email is 409 that still names the field**, so the form shows it next to the input;
+  the unique index is the real guarantee, the validator check gives the friendly message.
+- **Lengths count code points** (as PostgreSQL `varchar(n)` does), so Arabic and emoji get the full 200.
+- **Static country list** instead of `RegionInfo`: same on every machine, reviewable, shared with the
+  web app by hash.
+- **DSPs in the migration** (`HasData`): same ids everywhere, no duplicates on restart.
+- **Integration tests in the same project** behind a trait: plain unit tests need no Docker; CI runs all.
+
+### How to run and test
+`docker compose up --build`, sign in (Phase 1), then
+`curl -X POST localhost:8080/api/artists -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d '{"name":"عمرو دياب","countryCode":"EG","email":"booking@example.com"}'`,
+`curl "localhost:8080/api/artists?page=1&pageSize=20"`, `curl localhost:8080/api/dsps`.
+Tests: `dotnet test --solution TrackManagement.slnx` (239, needs Docker) or add
+`-- --filter-not-trait "Category=Integration"` to skip the 13 PostgreSQL tests.
+
+### Known limitations
+- No edit/delete/detail for artists and no search (not in this phase).
+- A duplicate-email race that reaches the database logs an EF error line before the 409.
+- Rate limiting still applies to sign-in only.
