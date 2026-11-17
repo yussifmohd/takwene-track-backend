@@ -7,6 +7,8 @@ public static class EndpointRouteBuilderExtensions
     {
         app.MapHealthEndpoints();
         app.MapAuthEndpoints();
+        app.MapArtistEndpoints();
+        app.MapDspEndpoints();
         return app;
     }
 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TrackManagement.Api.ExceptionHandlers;
 using TrackManagement.Api.OpenApi;
 using TrackManagement.Api.Security;
@@ -13,7 +14,7 @@ public static class ApiServiceCollectionExtensions
 
     public static IServiceCollection AddApi(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddSingleton(TimeProvider.System);
+        services.TryAddSingleton(TimeProvider.System);
 
         services.ConfigureHttpJsonOptions(options =>
         {
@@ -29,11 +30,16 @@ public static class ApiServiceCollectionExtensions
                 ctx.ProblemDetails.Instance ??= ctx.HttpContext.Request.Path;
                 ctx.ProblemDetails.Extensions["traceId"] = System.Diagnostics.Activity.Current?.Id ?? ctx.HttpContext.TraceIdentifier;
             });
+        // Order matters: the first handler that recognises the exception answers.
+        services.AddExceptionHandler<BadRequestExceptionHandler>();
+        services.AddExceptionHandler<UniqueConstraintExceptionHandler>();
         services.AddExceptionHandler<GlobalExceptionHandler>();
+        services.AddRequestBodyLimit(configuration);
 
         services.AddOpenApi("v1", options => options
             .AddDocumentTransformer<BearerSecuritySchemeTransformer>()
-            .AddOperationTransformer<AuthorizeOperationTransformer>());
+            .AddOperationTransformer<AuthorizeOperationTransformer>()
+            .AddSchemaTransformer<OmittedWhenNullSchemaTransformer>());
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpCurrentUser>();

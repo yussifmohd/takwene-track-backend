@@ -4,6 +4,7 @@ using Serilog;
 using TrackManagement.Api;
 using TrackManagement.Api.Endpoints;
 using TrackManagement.Api.Health;
+using TrackManagement.Api.Security;
 using TrackManagement.Application;
 using TrackManagement.Infrastructure;
 using TrackManagement.Infrastructure.Persistence;
@@ -37,6 +38,7 @@ try
     // First, so everything after sees the real client IP (only from trusted proxies).
     app.UseForwardedHeaders();
     app.UseExceptionHandler();
+    app.UseRequestBodyLimit();
     app.UseStatusCodePages();
     app.UseSerilogRequestLogging();
     app.UseCors(ApiServiceCollectionExtensions.CorsPolicyName);

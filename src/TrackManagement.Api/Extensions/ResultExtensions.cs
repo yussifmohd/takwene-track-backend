@@ -1,5 +1,6 @@
 using Ardalis.Result;
 using Microsoft.AspNetCore.Http.HttpResults;
+using TrackManagement.Application.Common.Validation;
 using IHttpResult = Microsoft.AspNetCore.Http.IResult;
 using IArdalisResult = Ardalis.Result.IResult;
 
@@ -32,8 +33,21 @@ public static class ResultExtensions
             ? TypedResults.Created(location(result.Value), new CreatedResponse<TId>(result.Value))
             : ToProblem(result);
 
+    /// <summary>Maps a successful create to 201 with a Location header and the created resource as body.</summary>
+    public static IHttpResult ToCreatedAtHttpResult<T>(this Result<T> result, Func<T, string> location) =>
+        result.Status is ResultStatus.Ok or ResultStatus.Created
+            ? TypedResults.Created(location(result.Value), result.Value)
+            : ToProblem(result);
+
     private static IHttpResult ToProblem(IArdalisResult result) => result.Status switch
     {
+        // Every failure is a clash with existing data (e.g. duplicate email): 409, still per field.
+        ResultStatus.Invalid when IsConflictOnly(result.ValidationErrors) => TypedResults.Problem(
+            new HttpValidationProblemDetails(ToValidationErrors(result.ValidationErrors))
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "Conflict",
+            }),
         ResultStatus.Invalid => TypedResults.ValidationProblem(
             ToValidationErrors(result.ValidationErrors),
             title: "One or more validation errors occurred."),
@@ -48,6 +62,12 @@ public static class ResultExtensions
             title: "An unexpected error occurred",
             detail: "An unexpected error occurred. Please try again later."),
     };
+
+    private static bool IsConflictOnly(IEnumerable<ValidationError> errors)
+    {
+        var list = errors.ToList();
+        return list.Count > 0 && list.All(e => e.ErrorCode == ValidationErrorCodes.Conflict);
+    }
 
     private static ProblemHttpResult Problem(int statusCode, string title, IEnumerable<string> errors)
     {
