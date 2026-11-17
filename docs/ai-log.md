@@ -333,3 +333,62 @@ email; anonymous create → 401; malformed JSON and `page=abc` → 400; `pageSiz
   override ("Palestine", following ISO 3166-1 "Palestine, State of") and a test.
 - **Walkthrough overclaim corrected:** the walkthrough section for frontend PR #3 now carries the same
   correction as the ai-log entry above (real edge cases, not shown to be the reported cause).
+
+## Phase 3 – Tracks (004-track-catalog-with-filters-and-status / 004-track-catalog-with-filters-and-status) – 2026-11-17
+
+### (a) Generated vs written
+- AI generated (Spec Kit): both specs (one batched clarify round, Q1–Q5), plans, research, data
+  models, contract intent, quickstarts, tasks (backend T001–T031, frontend T001–T024), analyze report
+  and its fixes.
+- AI generated (code): `Track` entity, `TrackStatusRules`, `Isrc`, `Genres`, track configuration and
+  migration (`xmin` concurrency token, check constraints), create/list/get/change-status use cases,
+  artist search and GET by id, `ConcurrencyExceptionHandler`, ISRC case in the unique-index handler,
+  OpenAPI value lists for genre/status, interceptor change, all new tests (397 total, was 239; 24 on
+  real PostgreSQL).
+- Developer decided: Q1–Q5 as recommended; all analyze fixes; how a manual "distributed" fits Phase 4
+  (PATCH unchanged; such a track has no distribution rows and the detail says so).
+- Developer wrote/changed: _Developer notes (Yousef):_ <!-- to be written by Yousef -->
+
+### (b) Security
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| Lost update: two admins change one track, a distributed track goes back to draft | `PATCH /api/tracks/{id}/status` | AI design (spec FR-008) | domain check on the loaded row + `xmin` row version → 409; PostgreSQL test and compose run (10 parallel withdraw/distribute pairs → always one 200, one 409) | done |
+| Duplicate ISRC via concurrent requests | create track | AI design | validator pre-check + unique index → same 409 `errors.isrc`; compose: 20 parallel → 1×201, 19×409 | done |
+| Wildcard injection in artist search | `GET /api/artists?search=` | AI design | `Contains` → `strpos` (no LIKE); `%`/`_` literal (tests); 100-character cap | done |
+| Artist email leak through the new GET by id | `GET /api/artists/{id}` | AI design | same admin-only projection as the list; test with and without an admin token | done |
+| Invalid data written past the validators | `tracks` | AI design | check constraints on ISRC shape, genre and status; FK restrict (PostgreSQL tests) | done |
+
+### (c) Mistakes & fixes
+1. **Contract listed track statuses on the distribution's `status`.** My first OpenAPI transformer
+   added the enum to every string property named `status`, so `TrackDistributionDto.status` (pending/
+   live/rejected in Phase 4) was typed as draft/submitted/distributed. Found by reading the exported
+   contract. Fix: limit "status" to the track request/query types; new test
+   `ServedDocument_ListsTrackValuesOnlyWhereTheyApply` asserts where the lists appear and where not.
+2. **A wrong test input.** The check-constraint test for the ISRC used a 13-character value, so
+   PostgreSQL refused it as too long for `char(12)` before the check ran (`ConstraintName` was null).
+   Fix: a 12-character lower-case value that only the check constraint refuses.
+3. **Unchecked parse result.** The create handler called `TryParseReleaseDate` without checking it;
+   the analyzer (CA1806, warnings as errors) stopped the build. Fix: refuse explicitly instead of
+   storing a default date.
+4. **Process: tests were not always written before the code.** The tasks list tests first; for the
+   Application and API layers I wrote each layer's tests right after its code, in the same step.
+   All tests were run and passed before committing, but test-first was not followed literally.
+5. **Process: one commit does not build on its own.** The PostgreSQL test commit uses the list
+   specifications that arrive in the next commit. The branch tip builds and passes; history was not
+   rewritten.
+- Found while implementing (design gap, not shipped): the audit interceptor overwrote every
+  `UpdatedAtUtc` on save, so the PATCH response (built before the save) would differ from the stored
+  time. Fix: the interceptor keeps a value the domain set (test added).
+
+### Quickstart results (compose, `down -v` + `up --build`)
+- Create with `eg-a1b-26-00001` → 201, `EG-A1B-26-00001`, draft, `allowedNextStatuses: [submitted]`,
+  `distributions: []`; anonymous GET of the `Location` → 200.
+- Duplicate in another form → 409 `errors.isrc`; 20 parallel creates with one new ISRC → 1×201, 19×409.
+- Bad values → 400 naming title, artistId, isrc, genre, releaseDate.
+- Status walk: draft→distributed 409, →submitted, →draft, →submitted, →distributed 200, →draft 409
+  "final", "published" 400, no token 401.
+- 10 rounds of parallel withdraw + distribute on a submitted track: always one 200 and one 409 (6 ended
+  distributed, 4 draft – whichever saved first); never back from distributed.
+- Filters: `status=published` 400, `artistId=nope` 400, unknown artist → total 0.
+- 1,013 tracks: slowest filtered page 37 ms (SC-004 < 1 s).
+- Arabic title unchanged after the walk.
