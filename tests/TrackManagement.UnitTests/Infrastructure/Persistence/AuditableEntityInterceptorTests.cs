@@ -53,4 +53,22 @@ public sealed class AuditableEntityInterceptorTests
 
         artist.CreatedAtUtc.ShouldBe(created);
     }
+
+    [Fact]
+    public async Task Modified_WithUpdateTimeSetByTheDomain_KeepsIt()
+    {
+        // Arrange
+        await using var context = CreateContext(new FixedTimeProvider(T0.AddMinutes(5)));
+        var artist = Artist.Create("Name", "EG", "a@b.eg", T0.UtcDateTime);
+        context.Add(artist);
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var setByDomain = T0.AddMinutes(3).UtcDateTime;
+
+        // Act
+        artist.UpdatedAtUtc = setByDomain;
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        artist.UpdatedAtUtc.ShouldBe(setByDomain);
+    }
 }
