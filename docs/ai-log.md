@@ -401,7 +401,7 @@ email; anonymous create → 401; malformed JSON and `page=abc` → 400; `pageSiz
   (URL), queries and mutations, catalogue page with filters and list, `StatusBadge`, track page with
   `StatusControl` (confirm dialog) and `DistributionsSection`, Add track page with zod schema,
   `ArtistPicker` combobox, header `StatusDot`, `/status` page, hand-written shadcn alert dialog,
-  README/walkthrough sections, all new tests (198 total, was 132), and throwaway seed and real-browser
+  README/walkthrough sections, all new tests (200 total, was 132), and throwaway seed and real-browser
   scripts (not committed).
 - Developer decided: Q1–Q5 as recommended (all statuses public, no edit/delete, artist search, order,
   confirm before distributed); the wording for a track distributed without deliveries.
@@ -422,7 +422,18 @@ email; anonymous create → 401; malformed JSON and `page=abc` → 400; `pageSiz
   importing a renamed page. The branch was not pushed yet; I soft-reset to the last planning commit and
   recommitted in buildable steps. Lesson: check `git status` for staged renames before the first commit.
 - **Setting state inside an effect** in the artist picker (to show the selected name) – the
-  react-hooks lint rule refused it; replaced with adjusting state during render.
+  react-hooks lint rule refused it; replaced with adjusting state during render. That replacement was
+  itself wrong (next entry).
+- **Clear filters left the artist in the field (found by the developer, after the PR was opened).**
+  With a status and an artist selected, Clear filters emptied the address and the other filters, but
+  the Artist field still showed the name. Cause: the picker kept its own copy of the selected name and
+  synced it from props. Clicking Clear first blurred the field, whose handler queued "show the selected
+  name"; the address change runs as a router transition, and React replayed the queued update over the
+  cleared value. My tests missed it because the sample artist ids were not GUIDs, so the filter never
+  took the artist in tests; the browser run never pressed Clear with an artist chosen. Fix: no copy –
+  the field shows typed text only while typing, otherwise the selected name derived on each render;
+  the filters remember a just-picked name. Regression test with GUID ids fails on the old picker;
+  re-checked in the browser (clear, Back restores the artist, × on the field).
 - **"Tracks" not highlighted on a track page.** `NavLink to="/"` never matches `/tracks/:id`; a test
   caught it, and the link now computes its own current state.
 - **Two timing-sensitive tests** after `/` started loading the catalogue: the session-expiry test
