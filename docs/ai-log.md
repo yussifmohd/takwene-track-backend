@@ -196,3 +196,34 @@ Entries are appended per phase and never rewritten.
   broke my own license/pinning rule; noted in Memory.md to not repeat.
 - **Header wrapped on desktop when signed in**, and the side note sat 16 px off the form; found in
   screenshots and fixed (e1509ff).
+- **Phase 1 shipped a sign-out/session bug that its tests did not catch** (reported by Yousef after
+  the merge; fixed in frontend PR `fix-sign-out-session-state-after-reload`, commits b521cdc,
+  7b369b3, dc9a70a). Symptoms: after Sign out the header's right side looked half-rendered while the
+  toast showed; after a reload the stored session and the app's state could disagree.
+  Exact causes, reproduced in real Edge before fixing:
+  1. *Stale stored session.* The persist `merge` step dropped an expired, malformed or unreadable
+     stored session **in memory only**. zustand persist writes to storage only when state changes,
+     so the rejected entry stayed in `localStorage` (the app said "Sign in", storage still held a
+     token) until some later write removed it.
+  2. *Clock inside selectors.* `useIsAuthenticated`/`useIsAdmin` compared `expiresAt` with
+     `Date.now()` inside zustand selectors. Selectors only re-run on store changes, so components
+     rendered at different moments could disagree about being signed in near expiry.
+  3. *Cross-tab clear ignored.* The `storage` listener returned early for `key === null`
+     (`localStorage.clear()` / cleared site data in another tab), leaving that tab signed in.
+  4. *Toast over the header.* `<Toaster position="top-right">` sat exactly on the Sign in / Sign out
+     controls, so the control that had just changed was covered for ~4 s.
+  Fix: storage validates on read and removes what it rejects; "signed in" means the store holds a
+  session; expiry becomes a store change (`endExpiredSession()` from the timer, focus/visibility and
+  before each API call); the listener handles `key === null` and reads storage instead of the event
+  payload; toasts are fixed at bottom-right in the Toaster wrapper.
+  **Why the tests missed it:** (a) the "drops an expired/malformed stored session" tests asserted the
+  in-memory session only, never `localStorage`; (b) the shared `afterEach` helper calls
+  `localStorage.clear()`, so a leftover entry never survived into a later test; (c) no test simulated
+  a reload and then checked header, guard, login page and storage together; (d) `key === null`
+  storage events were never tested; (e) jsdom has no layout and the route tests do not mount the
+  Toaster, so an overlap cannot be seen there – and my Phase 1 real-browser run checked routes and
+  storage after the toast had faded, not while it was visible. 12 new tests (incl. a reload
+  regression suite) and 5 strengthened ones were run against the old code first: 11 fail there,
+  all 93 pass with the fix.
+  Lesson: assert storage *and* every UI place after a simulated reload, and take real-browser
+  screenshots during transient UI (toasts), not after it.
