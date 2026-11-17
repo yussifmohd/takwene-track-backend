@@ -5,7 +5,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0.403-alpine3.24 AS build
 WORKDIR /src
 
 # Restore first (cached layer): solution-level props + project files + lock files only.
-COPY global.json Directory.Build.props Directory.Packages.props TrackManagement.slnx ./
+COPY global.json Directory.Build.props Directory.Packages.props TrackManagement.slnx .editorconfig ./
 COPY src/TrackManagement.Domain/*.csproj src/TrackManagement.Domain/packages.lock.json src/TrackManagement.Domain/
 COPY src/TrackManagement.Application/*.csproj src/TrackManagement.Application/packages.lock.json src/TrackManagement.Application/
 COPY src/TrackManagement.Infrastructure/*.csproj src/TrackManagement.Infrastructure/packages.lock.json src/TrackManagement.Infrastructure/
