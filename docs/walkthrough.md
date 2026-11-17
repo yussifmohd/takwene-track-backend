@@ -190,3 +190,60 @@ Tests: `dotnet test --solution TrackManagement.slnx` (239, needs Docker) or add
 - No edit/delete/detail for artists and no search (not in this phase).
 - A duplicate-email race that reaches the database logs an EF error line before the 409.
 - Rate limiting still applies to sign-in only.
+
+---
+
+## Phase 3 – Tracks (`004-track-catalog-with-filters-and-status`)
+
+### What was built
+Tracks (title in any script, one artist, ISO 3901 ISRC, fixed genre, release date, status) that an
+admin adds and moves through draft → submitted → distributed, and anyone lists (filters by artist,
+genre, status) or opens. Status rules live in the `Track` entity; two admins changing one track at
+once cannot both win. The artist picker in the web app gets a name search and GET by id.
+
+### Important files
+| Path | What it does |
+|---|---|
+| `src/TrackManagement.Domain/Tracks/Track.cs` | Entity: `Create` (draft, trimmed title, normalised ISRC, guards), `ChangeStatus` (asks the rules, returns the outcome), `Version` row version. |
+| `src/TrackManagement.Domain/Tracks/TrackStatusRules.cs` | The transition table, `AllowedNext`, `Check` with the refusal messages. The only copy of the rules. |
+| `src/TrackManagement.Domain/Tracks/{Isrc,Genres,TrackStatus}.cs` | ISRC normalise/format, the 8 genres, status names on the wire and in the database. |
+| `src/TrackManagement.Application/Features/Tracks/TrackDtos.cs` | List item, detail (allowed next statuses, empty distributions), distribution placeholder. |
+| `src/TrackManagement.Application/Features/Tracks/Specifications/TrackSpecs.cs` | `TrackFilter` + one shared WHERE for count and page; ordering; projections with the artist name. |
+| `src/TrackManagement.Application/Features/Tracks/Commands/{CreateTrack,ChangeTrackStatus}/` | Validators (per-field messages, ISRC conflict code) and handlers (domain decides, handler maps to 409/404). |
+| `src/TrackManagement.Application/Features/Tracks/Queries/{ListTracks,GetTrack}/` | Public reads. |
+| `src/TrackManagement.Application/Features/Artists/Queries/GetArtist/`, `ArtistsPageSpec.cs` | Artist by id; name search (`strpos`, no wildcards). |
+| `src/TrackManagement.Infrastructure/Persistence/Configurations/TrackConfiguration.cs` | `char(12)` ISRC unique, check constraints, FK restrict, indexes, `xmin` concurrency token. |
+| `src/TrackManagement.Infrastructure/Persistence/Migrations/*_AddTracks.cs` | `tracks` table (no `xmin` column: it is a system column). |
+| `src/TrackManagement.Api/Endpoints/TrackEndpoints.cs` | The four track routes; strings for genre/status/date so bad values are a 400 per field. |
+| `src/TrackManagement.Api/ExceptionHandlers/ConcurrencyExceptionHandler.cs` | Lost race → 409 "reload". |
+| `src/TrackManagement.Api/OpenApi/FixedValuesSchemaTransformer.cs` | Genre/status value lists in the contract (only on the track request/query members). |
+| `tests/.../Integration/{TrackPersistenceTests,TrackConcurrencyTests}.cs` | Real PostgreSQL: Unicode, checks, FK, ISRC race, SQL filters, `xmin`. |
+
+### Request flow: `PATCH /api/tracks/{id}/status`
+1. Pipeline as before (logging, exception handler, body limit, auth) → `.RequireAdmin()`.
+2. `TrackEndpoints` builds `ChangeTrackStatusCommand(id, status)`.
+3. Validation behavior: unknown/missing status → 400 `errors.status`.
+4. Handler loads the track (tracked, with artist); none → 404. `track.ChangeStatus(target, now)`:
+   the rules refuse → `Result.Conflict(message)` → 409 ProblemDetails; allowed → status and
+   `UpdatedAtUtc` change and the handler returns the detail DTO.
+5. Unit of Work behavior saves once: `UPDATE … WHERE id = @id AND xmin = @loaded`. Someone saved first
+   → `DbUpdateConcurrencyException` → `ConcurrencyExceptionHandler` → 409.
+
+### Key decisions and why
+- **Rules in the domain, outcome not exception**: the requirement; refusals are normal answers.
+- **The API lists the allowed next statuses**: the web app shows only valid controls and keeps no copy.
+- **`xmin` row version**: free in PostgreSQL, no extra column; a domain check alone races.
+- **Strings at the edge** for genre, status and date: unknown values must be a 400 naming the field.
+- **Interceptor keeps a domain-set `UpdatedAtUtc`**: the PATCH response is built before the save and
+  must match what is stored.
+- **PATCH to distributed creates no distribution rows**; Phase 4 adds rows (spec "Status and distributions").
+
+### How to run and test
+`docker compose up --build -d`, sign in, then the curl examples in the README.
+`dotnet test --solution TrackManagement.slnx` (397 tests, 24 on PostgreSQL via Docker).
+Quickstart results are in `docs/ai-log.md` (Phase 3).
+
+### Known limitations
+- Tracks cannot be edited or deleted yet (out of scope, clarified).
+- Distributions are always empty until Phase 4.
+- Artist search is a substring match on the name (no accent/diacritic folding).
