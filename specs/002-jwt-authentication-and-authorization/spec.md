@@ -8,6 +8,15 @@
 
 **Input**: User description: "Phase 1 – JWT authentication and authorization. Reads are public; writes are Admin-only; no self-registration. One admin account is created from configuration/environment; its password is never committed (only in the local environment file, with a placeholder in the example file). Admins sign in with email and password and receive a 60-minute access token validated for issuer, audience and signing key. Failed sign-ins return one generic error that does not reveal whether the email exists. Repeated failures lock the account temporarily and sign-in attempts are rate limited."
 
+## Clarifications
+
+### Session 2026-11-17 (recommended defaults applied; pending user confirmation at the analyze checkpoint)
+
+- Q: What does a locked-out account see when it signs in? → A: The same generic "invalid email or password" error as any failure (no account-existence or lockout signal); lockouts are logged server-side. The lock clears itself after 15 minutes.
+- Q: Lockout and throttling numbers? → A: 5 consecutive failures lock the account for 15 minutes; 10 sign-in attempts per minute per client, excess refused with "too many requests" and a retry time.
+- Q: What happens to an existing admin on restart when the configured password differs? → A: Nothing: the account is created only if missing and never overwritten (password changes are out of scope).
+- Q: Is there a "current user" operation? → A: Yes, it returns email, roles and token expiry for a valid token; the web app uses it on "My account".
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Admin signs in (Priority: P1)
@@ -144,7 +153,7 @@ in the environment: the existing account is not changed.
 - **FR-007**: Sign-in input MUST be validated (email required, valid format, ≤ 256 characters;
   password required, ≤ 128 characters) and invalid input reported per field.
 - **FR-008**: The system MUST offer a "current user" operation that, for a valid token, returns the
-  user's email and roles.
+  user's email, roles and the token's expiry time.
 - **FR-009**: All read operations and the health status MUST remain available without signing in.
 - **FR-010**: All operations that change data MUST require the admin role; the rule MUST be
   defined once and applied to every write operation added in later phases.
