@@ -71,5 +71,39 @@ Entries are appended per phase and never rewritten.
 - **Port 5432 already in use** by a local Postgres on the dev machine; compose failed to start.
   Fix: host port configurable via `POSTGRES_HOST_PORT` (default 5432).
 
-### Frontend
-_Appended when the frontend Phase 0 implementation is complete._
+### Frontend (same phase)
+
+**(a) Generated vs written**
+- AI generated: Vite/TS/ESLint/Vitest config, API client + ProblemDetails helpers, generated
+  contract types, health card (skeleton, healthy, unhealthy 503-as-data, unreachable + Retry,
+  30 s refresh), app shell, not-found route, design tokens (frontend-design skill: indigo ink,
+  saffron accent, Readex Pro for Latin + Arabic, level-meter motif), nginx/Docker/compose, CI with a
+  bundle budget, 19 tests.
+- Developer wrote/changed: _Developer notes: (to be filled in by Yousef)_
+
+**(b) Security**
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| Raw HTML injection (XSS) | React components | constitution rule | ESLint rule forbids `dangerouslySetInnerHTML` | done |
+| Missing browser security headers | nginx | AI design | CSP (self + Google Fonts only), `X-Frame-Options DENY`, `nosniff`, Referrer-Policy, Permissions-Policy, `server_tokens off` | done |
+| Container runs as root | web image | AI design | `nginx-unprivileged` (verified `uid=101`) | done |
+| Secrets in the bundle | Vite env | AI design | only `VITE_API_BASE_URL`; README warns `VITE_*` is public | done |
+| Unpinned deps injected by tooling | `shadcn add` | found by AI on review of package.json | removed `cn` (unrelated npm package) and `next-themes` | fixed |
+| Dev-only advisory (minimatch DoS) | eslint / typescript-eslint / shadcn / redocly | `npm audit` | accepted: build tooling only, our own glob patterns; production audit clean | accepted |
+| Token in localStorage (XSS exposure) | auth store | planned trade-off | documented in Phase 1 | planned |
+
+**(c) Mistakes & fixes**
+- **shadcn generated broken imports.** Running `shadcn add` without `init` rewrote the `cn`
+  helper import as `from "cn"` and installed the unrelated npm package `cn` plus `next-themes`,
+  both unpinned. Caught by reviewing `package.json`; fixed imports to `@/lib/utils` and removed both
+  packages (070ebaa).
+- **Skeleton used the accent colour.** shadcn's Skeleton is `bg-accent`, which is saffron in this
+  palette; changed to `bg-muted`.
+- **MSW 3 option renamed.** I used `onUnhandledRequest` (MSW 2); MSW 3 calls it `onUnhandledFrame`
+  (caught by `tsc`).
+- **Retry test was wrong about the hook.** The test failed a single request, but the hook retries
+  once, so the error state never appeared. Fixed by failing two attempts and waiting past the
+  ~1 s backoff.
+- **Mobile overflow at 360 px.** First screenshots showed the nav pushing the page wider than the
+  screen; fixed with a scrollable nav and stacked card header (fb45bb0). Also learned headless Edge
+  enforces a 496 px minimum viewport, so 360 px was verified inside an iframe.
