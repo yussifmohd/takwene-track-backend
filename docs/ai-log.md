@@ -392,3 +392,50 @@ email; anonymous create → 401; malformed JSON and `page=abc` → 400; `pageSiz
 - Filters: `status=published` 400, `artistId=nope` 400, unknown artist → total 0.
 - 1,013 tracks: slowest filtered page 37 ms (SC-004 < 1 s).
 - Arabic title unchanged after the walk.
+
+### Frontend (same phase)
+
+**(a) Generated vs written**
+- AI generated: the frontend spec, plan, research, tasks (T001–T024); API types from the 004 contract;
+  ISRC and date helpers, genre/status lists typed against the contract, tracks API module, filter hook
+  (URL), queries and mutations, catalogue page with filters and list, `StatusBadge`, track page with
+  `StatusControl` (confirm dialog) and `DistributionsSection`, Add track page with zod schema,
+  `ArtistPicker` combobox, header `StatusDot`, `/status` page, hand-written shadcn alert dialog,
+  README/walkthrough sections, all new tests (198 total, was 132), and throwaway seed and real-browser
+  scripts (not committed).
+- Developer decided: Q1–Q5 as recommended (all statuses public, no edit/delete, artist search, order,
+  confirm before distributed); the wording for a track distributed without deliveries.
+- Developer wrote/changed: _Developer notes (Yousef):_ <!-- to be written by Yousef -->
+
+**(b) Security**
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| Status changes offered to visitors | track page | AI design | control rendered only for admins; the API still requires Admin (401/403); tested | done |
+| Add track reachable by non-admins | `/tracks/new` | AI design | `RequireAuth` + `handle.requiresRole` ("Only admins can add tracks"); tested | done |
+| Unvalidated values from the address sent to the API | catalogue filters | AI design | `useTrackFilters` drops unknown status/genre and non-GUID artist ids before any request; tested | done |
+| Script injection via titles / artist names | list, track page, picker, toasts | Phase 0 rule | rendered only as text through `UserText` (no HTML) | done |
+| Sign-in page promised edit/delete of tracks that don't exist | login page | AI (Phase 1 copy) | list rewritten to what admins can do today | done |
+
+**(c) Mistakes & fixes**
+- **Commits that did not build on their own (caught before pushing).** File renames made with
+  `git mv` earlier were already staged, so they rode along in the first commit (API types), leaving it
+  importing a renamed page. The branch was not pushed yet; I soft-reset to the last planning commit and
+  recommitted in buildable steps. Lesson: check `git status` for staged renames before the first commit.
+- **Setting state inside an effect** in the artist picker (to show the selected name) – the
+  react-hooks lint rule refused it; replaced with adjusting state during render.
+- **"Tracks" not highlighted on a track page.** `NavLink to="/"` never matches `/tracks/:id`; a test
+  caught it, and the link now computes its own current state.
+- **Two timing-sensitive tests** after `/` started loading the catalogue: the session-expiry test
+  (300 ms session, header checked before React had drawn `/login`) failed about one run in three under
+  the full suite. Not an app bug; the test got more margin and waits for the render. Found by running
+  the suite three times, as planned.
+- **My first browser script used an ISRC that wasn't a duplicate** (the seed gave that track year 96),
+  so it created a stray track instead of testing the 409; script fixed, the stray row stayed in the
+  local data only.
+
+**Real-browser results** (compose, 28 artists, 24 tracks; Edge over DevTools, desktop light + 400 px
+dark): catalogue, filters in the address (invalid ones ignored), artist search in Arabic and pick,
+reload keeps the artist's name, track page, unknown track, sign-in from Add track and back, empty submit
+(focus on Title), picker lists the first 10, duplicate ISRC under ISRC, create → track page + toast,
+submit, confirm dialog, distributed (final, "without platform deliveries recorded"), paging, status
+dot → `/status`, sign-out → `/login`. No horizontal overflow; no app console errors. Bundle 200.7 kB gzip.
