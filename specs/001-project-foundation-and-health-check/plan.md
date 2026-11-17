@@ -27,7 +27,7 @@ Scalar.AspNetCore 2.18.7, Serilog.AspNetCore 10.0.0 (full table: research.md R2)
 
 **Storage**: PostgreSQL 17 (snake_case); EF Core migrations in Infrastructure
 
-**Testing**: xUnit v3 4.0.2, NSubstitute 6.2.0, Shouldly 4.3.0, Microsoft.AspNetCore.Mvc.Testing + EF InMemory for API-level tests, coverlet
+**Testing**: xUnit v3 4.0.2, NSubstitute 6.2.0, Shouldly 4.3.0, Microsoft.AspNetCore.Mvc.Testing + EF InMemory for API-level tests, coverlet.MTP + TrxReport (MTP extensions)
 
 **Target Platform**: Linux containers (alpine) locally via Docker Compose; AWS EC2 later (Phase 6)
 

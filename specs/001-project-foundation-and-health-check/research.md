@@ -36,7 +36,8 @@ required major line, with a permissive license.
 | Microsoft.NET.Test.Sdk | 18.11.0 | MIT | 2026-10-13 | |
 | NSubstitute | 6.2.0 | BSD-3-Clause | 2026-08-11 | |
 | Shouldly | 4.3.0 | BSD-3-Clause | 2025-01-23 | no FluentAssertions |
-| coverlet.collector | 10.1.0 | MIT | 2026-09-27 | |
+| ~~coverlet.collector~~ → coverlet.MTP | 10.1.0 | MIT | 2026-09-27 | collector is VSTest-only; MTP extension `--coverlet` |
+| Microsoft.Testing.Extensions.TrxReport | 2.5.1 | MIT | 2026-10-07 | `--report-trx`; matches Microsoft.Testing.Platform 2.5.1 pinned by xunit.v3 |
 | Microsoft.AspNetCore.Mvc.Testing | 10.0.14 | MIT | 2026-10-25 | API-level tests |
 
 Identity (`Microsoft.AspNetCore.Identity.EntityFrameworkCore` 10.0.14, MIT) is added in Phase 1.
@@ -124,8 +125,9 @@ Identity (`Microsoft.AspNetCore.Identity.EntityFrameworkCore` 10.0.14, MIT) is a
 
 - **Decision**: `.github/workflows/backend-tests.yml`, `on: pull_request: branches: [main]`,
   `actions/setup-dotnet` with `global-json-file: global.json`, `dotnet restore` (locked mode),
-  `dotnet build -c Release --no-restore`, `dotnet test --no-build -c Release --logger trx
-  --collect:"XPlat Code Coverage"`, `actions/upload-artifact` for TRX + coverage. Action
+  `dotnet build -c Release --no-restore`, `dotnet test --solution TrackManagement.slnx --no-build -c Release
+  --report-trx --coverlet --coverlet-output-format cobertura` (Microsoft.Testing.Platform options;
+  revised during implementation because `--logger trx`/`--collect` are VSTest-only), `actions/upload-artifact` for TRX + coverage. Action
   versions pinned to major tags. README documents enabling it as a required status check.
 
 ## R12. Line endings
