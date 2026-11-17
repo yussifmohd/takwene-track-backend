@@ -20,6 +20,10 @@ public static class TrackStatusNames
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, null),
     };
 
+    /// <summary>Name → status for stored values (always valid); throws on anything else.</summary>
+    public static TrackStatus Parse(string name) =>
+        TryParse(name, out var status) ? status : throw new ArgumentException($"Unknown track status '{name}'.", nameof(name));
+
     /// <summary>Exact lower-case names only ("draft"); anything else is unknown.</summary>
     public static bool TryParse(string? name, out TrackStatus status)
     {
