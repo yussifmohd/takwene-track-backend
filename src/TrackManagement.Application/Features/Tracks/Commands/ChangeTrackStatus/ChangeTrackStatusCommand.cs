@@ -2,7 +2,9 @@ using Ardalis.Result;
 using FluentValidation;
 using TrackManagement.Application.Common.Messaging;
 using TrackManagement.Application.Common.Persistence;
+using TrackManagement.Application.Features.Dsps;
 using TrackManagement.Application.Features.Tracks.Specifications;
+using TrackManagement.Domain.Dsps;
 using TrackManagement.Domain.Tracks;
 
 namespace TrackManagement.Application.Features.Tracks.Commands.ChangeTrackStatus;
@@ -23,7 +25,7 @@ public sealed class ChangeTrackStatusCommandValidator : AbstractValidator<Change
 /// Asks the track to change; the track decides (<see cref="TrackStatusRules"/>). A refusal is a 409 with
 /// the domain's explanation. A concurrent change to the same track fails on save (row version) → 409.
 /// </summary>
-public sealed class ChangeTrackStatusCommandHandler(IRepository<Track> tracks, TimeProvider timeProvider)
+public sealed class ChangeTrackStatusCommandHandler(IRepository<Track> tracks, IReadRepository<Dsp> dsps, TimeProvider timeProvider)
     : ICommandHandler<ChangeTrackStatusCommand, Result<TrackDetailDto>>
 {
     public const string NotFoundMessage = "No track has this id.";
@@ -45,6 +47,7 @@ public sealed class ChangeTrackStatusCommandHandler(IRepository<Track> tracks, T
 
         // The track is tracked: the Unit of Work behavior saves the change (no Update call, which would
         // mark every column as modified).
-        return Result.Success(TrackDetailDto.From(track, track.Artist.Name));
+        var dspNames = await DspNames.LoadAsync(dsps, cancellationToken);
+        return Result.Success(TrackDetailDto.From(track, track.Artist.Name, dspNames));
     }
 }

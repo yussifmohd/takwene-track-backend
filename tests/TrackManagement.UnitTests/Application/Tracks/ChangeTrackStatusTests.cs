@@ -18,7 +18,7 @@ public sealed class ChangeTrackStatusTests
     {
         _tracks.FirstOrDefaultAsync(Arg.Any<ISpecification<Track>>(), Arg.Any<CancellationToken>())
             .Returns(ci => ((ISpecification<Track>)ci[0]).Evaluate(_data).FirstOrDefault());
-        _sut = new ChangeTrackStatusCommandHandler(_tracks, new FixedTimeProvider(Later));
+        _sut = new ChangeTrackStatusCommandHandler(_tracks, TrackTestData.Dsps(), new FixedTimeProvider(Later));
     }
 
     private Track Add(TrackStatus status)
@@ -57,15 +57,16 @@ public sealed class ChangeTrackStatusTests
         var track = Add(TrackStatus.Submitted);
 
         // Act
-        var result = await _sut.Handle(new ChangeTrackStatusCommand(track.Id, "distributed"), TestContext.Current.CancellationToken);
+        var result = await _sut.Handle(new ChangeTrackStatusCommand(track.Id, "draft"), TestContext.Current.CancellationToken);
 
         // Assert
         result.Status.ShouldBe(ResultStatus.Ok);
-        result.Value.Status.ShouldBe(TrackStatus.Distributed);
-        result.Value.AllowedNextStatuses.ShouldBeEmpty();
+        result.Value.Status.ShouldBe(TrackStatus.Draft);
+        result.Value.AllowedNextStatuses.ShouldBe([TrackStatus.Submitted]);
+        result.Value.CanDistribute.ShouldBeFalse();
         result.Value.UpdatedAtUtc.ShouldBe(Later.UtcDateTime);
         result.Value.ArtistName.ShouldBe("Wegz");
-        track.Status.ShouldBe(TrackStatus.Distributed);
+        track.Status.ShouldBe(TrackStatus.Draft);
         await _tracks.DidNotReceiveWithAnyArgs().SaveChangesAsync(TestContext.Current.CancellationToken);
         await _tracks.DidNotReceiveWithAnyArgs().UpdateAsync(default!, TestContext.Current.CancellationToken);
     }
@@ -73,6 +74,7 @@ public sealed class ChangeTrackStatusTests
     [Theory]
     [InlineData(TrackStatus.Draft, "draft", "The track is already draft.")]
     [InlineData(TrackStatus.Draft, "distributed", "A draft track must be submitted before it can be distributed.")]
+    [InlineData(TrackStatus.Submitted, "distributed", "A track becomes distributed when it is sent to at least one platform. Use Distribute to send it.")]
     [InlineData(TrackStatus.Distributed, "draft", "A distributed track is final; its status cannot change.")]
     public async Task Handle_Refused_ReturnsConflictWithTheDomainMessage(TrackStatus from, string to, string message)
     {

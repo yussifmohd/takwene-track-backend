@@ -77,6 +77,6 @@ public sealed class CreateTrackCommandHandler(IRepository<Track> tracks, IReadRe
 
         var track = Track.Create(request.Title, artist.Id, request.Isrc, request.Genre, releaseDate, timeProvider.GetUtcNow().UtcDateTime);
         await tracks.AddAsync(track, cancellationToken);
-        return Result.Created(TrackDetailDto.From(track, artist.Name));
+        return Result.Created(TrackDetailDto.From(track, artist.Name, System.Collections.Frozen.FrozenDictionary<Guid, string>.Empty));
     }
 }

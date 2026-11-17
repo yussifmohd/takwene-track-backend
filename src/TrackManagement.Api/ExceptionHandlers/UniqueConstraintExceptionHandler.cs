@@ -20,6 +20,7 @@ public sealed class UniqueConstraintExceptionHandler(IProblemDetailsService prob
     {
         [ArtistConfiguration.NormalizedEmailIndex] = ("email", CreateArtistCommandValidator.DuplicateEmailMessage),
         [TrackConfiguration.IsrcIndex] = ("isrc", CreateTrackCommandValidator.DuplicateIsrcMessage),
+        [TrackDistributionConfiguration.PrimaryKey] = ("dspIds", "This platform was just added by someone else. Reload and try again."),
     };
 
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)

@@ -356,6 +356,44 @@ namespace TrackManagement.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TrackManagement.Domain.Tracks.TrackDistribution", b =>
+                {
+                    b.Property<Guid>("TrackId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("track_id");
+
+                    b.Property<Guid>("DspId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("dsp_id");
+
+                    b.Property<DateTime?>("AnsweredAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("answered_at_utc");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("SubmittedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at_utc");
+
+                    b.HasKey("TrackId", "DspId")
+                        .HasName("pk_track_distributions");
+
+                    b.HasIndex("DspId")
+                        .HasDatabaseName("ix_track_distributions_dsp_id");
+
+                    b.ToTable("track_distributions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_track_distributions_answered", "(status = 'pending') = (answered_at_utc IS NULL)");
+
+                            t.HasCheckConstraint("ck_track_distributions_status", "status IN ('pending', 'live', 'rejected')");
+                        });
+                });
+
             modelBuilder.Entity("TrackManagement.Infrastructure.Identity.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -505,6 +543,30 @@ namespace TrackManagement.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_tracks_artists_artist_id");
 
                     b.Navigation("Artist");
+                });
+
+            modelBuilder.Entity("TrackManagement.Domain.Tracks.TrackDistribution", b =>
+                {
+                    b.HasOne("TrackManagement.Domain.Dsps.Dsp", "Dsp")
+                        .WithMany()
+                        .HasForeignKey("DspId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_track_distributions_dsps_dsp_id");
+
+                    b.HasOne("TrackManagement.Domain.Tracks.Track", null)
+                        .WithMany("Distributions")
+                        .HasForeignKey("TrackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_track_distributions_tracks_track_id");
+
+                    b.Navigation("Dsp");
+                });
+
+            modelBuilder.Entity("TrackManagement.Domain.Tracks.Track", b =>
+                {
+                    b.Navigation("Distributions");
                 });
 #pragma warning restore 612, 618
         }

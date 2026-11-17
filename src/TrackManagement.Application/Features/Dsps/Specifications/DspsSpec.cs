@@ -11,3 +11,9 @@ public sealed class DspsSpec : Specification<Dsp, DspDto>
         Query.Select(d => new DspDto(d.Id, d.Name));
     }
 }
+
+/// <summary>All platforms as entities (a few rows), for checking ids and naming deliveries.</summary>
+public sealed class AllDspsSpec : Specification<Dsp>
+{
+    public AllDspsSpec() => Query.AsNoTracking();
+}

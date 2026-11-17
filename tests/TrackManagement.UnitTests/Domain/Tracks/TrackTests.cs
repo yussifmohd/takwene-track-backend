@@ -65,7 +65,7 @@ public sealed class TrackTests
     {
         var track = NewTrack();
         track.ChangeStatus(TrackStatus.Submitted, Now);
-        track.ChangeStatus(TrackStatus.Distributed, Now);
+        track.Distribute([TrackManagement.Domain.Dsps.Dsp.SpotifyId], Now);
 
         track.ChangeStatus(TrackStatus.Draft, Now).Outcome.ShouldBe(StatusChangeOutcome.NotAllowed);
         track.ChangeStatus(TrackStatus.Submitted, Now).Outcome.ShouldBe(StatusChangeOutcome.NotAllowed);

@@ -23,6 +23,12 @@ internal static class TracksApi
     public static Task<HttpResponseMessage> ChangeStatusAsync(HttpClient client, string? token, string id, object body) =>
         SendAsync(client, HttpMethod.Patch, $"{Path}/{id}/status", token, body);
 
+    public static Task<HttpResponseMessage> DistributeAsync(HttpClient client, string? token, string id, object body) =>
+        SendAsync(client, HttpMethod.Post, $"{Path}/{id}/distribute", token, body);
+
+    public static Task<HttpResponseMessage> AnswerAsync(HttpClient client, string? token, string id, Guid dspId, object body) =>
+        SendAsync(client, HttpMethod.Patch, $"{Path}/{id}/distributions/{dspId}", token, body);
+
     /// <summary>Creates an artist through the API and returns its id.</summary>
     public static async Task<Guid> CreateArtistAsync(HttpClient client, string adminToken, string name = "Amr Diab")
     {

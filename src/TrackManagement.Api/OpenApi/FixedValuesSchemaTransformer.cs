@@ -9,8 +9,7 @@ namespace TrackManagement.Api.OpenApi;
 /// <summary>
 /// Genre and track status travel as strings (so unknown values are a 400 naming the field), but only
 /// the fixed values are valid. List them as <c>enum</c> in the contract so clients get exact types.
-/// Applied only to the track request/query members below: other "status" fields (e.g. a distribution's
-/// status in Phase 4) have their own values.
+/// Applied only to the request/query members below; a delivery answer's "status" has its own values.
 /// </summary>
 internal sealed class FixedValuesSchemaTransformer : IOpenApiSchemaTransformer
 {
@@ -21,7 +20,7 @@ internal sealed class FixedValuesSchemaTransformer : IOpenApiSchemaTransformer
         var (name, owner) = context.JsonPropertyInfo is { } property
             ? (property.Name, property.DeclaringType)
             : (context.ParameterDescription?.Name, context.ParameterDescription?.ModelMetadata?.ContainerType);
-        if (owner is null || !TrackRequestTypes.Contains(owner) && name != "genre")
+        if (owner is null || !TrackRequestTypes.Contains(owner) && owner != typeof(RecordDistributionAnswerRequest) && name != "genre")
         {
             return Task.CompletedTask;
         }
@@ -29,6 +28,7 @@ internal sealed class FixedValuesSchemaTransformer : IOpenApiSchemaTransformer
         var values = name switch
         {
             "genre" => Genres.All,
+            "status" when owner == typeof(RecordDistributionAnswerRequest) => DistributionStatusNames.Answers,
             "status" => TrackStatusNames.All,
             _ => null,
         };

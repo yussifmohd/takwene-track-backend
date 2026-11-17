@@ -5,6 +5,8 @@ using TrackManagement.Api.Security;
 using TrackManagement.Application.Features.Tracks;
 using TrackManagement.Application.Features.Tracks.Commands.ChangeTrackStatus;
 using TrackManagement.Application.Features.Tracks.Commands.CreateTrack;
+using TrackManagement.Application.Features.Tracks.Commands.DistributeTrack;
+using TrackManagement.Application.Features.Tracks.Commands.RecordDistributionAnswer;
 using TrackManagement.Application.Features.Tracks.Queries.GetTrack;
 using TrackManagement.Application.Features.Tracks.Queries.ListTracks;
 using PagedTracks = TrackManagement.Application.Common.Models.PagedResult<TrackManagement.Application.Features.Tracks.TrackListItemDto>;
@@ -15,8 +17,17 @@ namespace TrackManagement.Api.Endpoints;
 /// <param name="ReleaseDate">Calendar date, "YYYY-MM-DD".</param>
 public sealed record CreateTrackRequest(string? Title, Guid? ArtistId, string? Isrc, string? Genre, string? ReleaseDate);
 
-/// <summary>Status-change body: the wanted status ("submitted", "draft" or "distributed").</summary>
+/// <summary>
+/// Status-change body: the wanted status ("submitted", "draft" or "distributed"). "distributed" is refused
+/// (409) unless the track has at least one delivery: tracks become distributed through Distribute.
+/// </summary>
 public sealed record ChangeTrackStatusRequest(string? Status);
+
+/// <summary>Distribute body: one or more platform ids (repeats count once, at most 20 different ones).</summary>
+public sealed record DistributeTrackRequest(IReadOnlyList<Guid>? DspIds);
+
+/// <summary>Simulated platform answer for a pending delivery: "live" or "rejected".</summary>
+public sealed record RecordDistributionAnswerRequest(string? Status);
 
 /// <summary>List query string. All filters optional and combined with AND.</summary>
 public sealed record ListTracksRequest(
@@ -73,7 +84,29 @@ public static class TrackEndpoints
         group.MapPatch("/{id:guid}/status", async (Guid id, ChangeTrackStatusRequest request, ISender sender, CancellationToken cancellationToken) =>
                 (await sender.Send(new ChangeTrackStatusCommand(id, request.Status ?? string.Empty), cancellationToken)).ToHttpResult())
             .WithName("ChangeTrackStatus")
-            .WithSummary("Change a track's status: draft → submitted, submitted → draft or distributed (admin only)")
+            .WithSummary("Change a track's status: draft → submitted, submitted → draft (admin only). Distributed is reached through Distribute.")
+            .RequireAdmin()
+            .Produces<TrackDetailDto>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        group.MapPost("/{id:guid}/distribute", async (Guid id, DistributeTrackRequest request, ISender sender, CancellationToken cancellationToken) =>
+                (await sender.Send(new DistributeTrackCommand(id, request.DspIds), cancellationToken)).ToHttpResult())
+            .WithName("DistributeTrack")
+            .WithSummary("Send a submitted or distributed track to platforms; rejected deliveries are sent again (admin only)")
+            .RequireAdmin()
+            .Produces<TrackDetailDto>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesValidationProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status413PayloadTooLarge);
+
+        group.MapPatch("/{id:guid}/distributions/{dspId:guid}", async (
+                Guid id, Guid dspId, RecordDistributionAnswerRequest request, ISender sender, CancellationToken cancellationToken) =>
+                (await sender.Send(new RecordDistributionAnswerCommand(id, dspId, request.Status ?? string.Empty), cancellationToken)).ToHttpResult())
+            .WithName("RecordDistributionAnswer")
+            .WithSummary("Record a platform's simulated answer for a pending delivery: live or rejected (admin only)")
             .RequireAdmin()
             .Produces<TrackDetailDto>()
             .ProducesValidationProblem()
