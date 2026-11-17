@@ -16,6 +16,8 @@ public static class ApiServiceCollectionExtensions
         services.ConfigureHttpJsonOptions(options =>
         {
             options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            // Numbers must be JSON numbers (web defaults also accept "42"), keeping the contract precise.
+            options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false));
         });
 
