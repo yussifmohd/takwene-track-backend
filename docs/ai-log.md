@@ -454,3 +454,75 @@ reload keeps the artist's name, track page, unknown track, sign-in from Add trac
 (focus on Title), picker lists the first 10, duplicate ISRC under ISRC, create → track page + toast,
 submit, confirm dialog, distributed (final, "without platform deliveries recorded"), paging, status
 dot → `/status`, sign-out → `/login`. No horizontal overflow; no app console errors. Bundle 200.7 kB gzip.
+
+---
+
+## Phase 4 – Distribution (005-track-distribution-to-dsps / 005-track-distribution-to-dsps) – 2026-11-17
+
+### (a) Generated vs written
+- AI generated (Spec Kit): both specs (one batched clarify round, Q1–Q5), plans, research, data
+  models, contract intent, quickstarts, tasks (backend T001–T028, frontend T001–T015), analyze report
+  (A1–A6) and its fixes; the README rule added to both constitutions (v1.2.0) and to the
+  git-workflow and decisions-log skills.
+- AI generated (code): `TrackDistribution`, `DistributionStatus` + `DistributionStatusRules`,
+  `Track.Distribute` / `RecordAnswer`, the `hasDistributions` status rule, distribute and answer
+  commands, endpoints, `TrackDistributionConfiguration` + migration `AddTrackDistributions`,
+  DTO reshape (`canDistribute`, `allowedAnswers`, answer time), unique-key mapping, OpenAPI value list
+  for answers, the README rewritten to the README rule, all new tests (471 total, was 397; 31 on
+  real PostgreSQL).
+- Developer decided: PATCH → distributed is a 409 unless the track has a delivery (changed from the
+  Phase 3 plan after the developer's review); **no data migration** – local databases from before are
+  reset with `docker compose down -v` (the AI had proposed a one-time data fix); the platform count is
+  not hard-coded – up to 20 distinct ids per request; Q2–Q5 as recommended; A1–A6 with A1 adjusted;
+  the README rule (finished product, fixed structure, no phase history).
+- Developer wrote/changed: _Developer notes (Yousef): – placeholder –_
+
+### (b) Security
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| A track marked distributed without any delivery | `PATCH /api/tracks/{id}/status` | developer (Phase 3 review) | domain rule `Check(from, to, hasDistributions)` → 409; distributed reachable only through Distribute | done |
+| Duplicate deliveries for one platform via concurrent requests | `POST /distribute` | AI design | PK (track, platform) + `xmin` on the track (every delivery change stamps it) → 409; PostgreSQL test; compose: 20 parallel → one row | done |
+| Stale answer or status change overwriting a newer delivery state | answer / distribute / withdraw | AI design | same `xmin` check; PostgreSQL tests "distribute vs withdraw" and "re-send vs stale answer" | done |
+| Oversized id list | `POST /distribute` | AI design | ≤ 20 distinct ids (validator) + 32 KB body cap | done |
+| Unknown platform ids written | `POST /distribute` | AI design | handler checks against stored platforms (400 `dspIds`); FK as the database guard (test) | done |
+| Inconsistent delivery rows written past the API | `track_distributions` | AI design | check constraints: known status; answer time exactly when not pending (tests) | done |
+| Writes without the Admin role | both new endpoints | AI design | `.RequireAdmin()`; 401/403 tests | done |
+
+Deliveries are public on the track detail (platform name, status, times): no personal data.
+
+### (c) Mistakes & fixes
+1. **A check-constraint test broke two constraints at once.** `SET status = 'sent'` left the answer
+   time empty, so PostgreSQL reported the "answered" check instead of the status check. Fix: the
+   statement sets an answer time too, so only the status check can refuse it.
+2. **An old test kept the old rule.** `TrackPersistenceTests` still expected `[draft, distributed]` for
+   a submitted track; only the full run with PostgreSQL caught it. Fixed to `[draft]`.
+3. **A planned race could not happen as written.** A5 asked for "answer (reject) vs re-send on one
+   delivery", but an answer needs a pending delivery and a re-send needs a rejected one. The test
+   races a re-send against a stale answer to another platform of the same track (both stamp the
+   track; the second save is refused). Recorded here instead of claiming the planned case.
+4. **Process: tests first only for the domain.** Domain tests were written before the code; the
+   Application and API tests right after their code in the same step. All ran green before committing.
+5. **Process: a script edit stopped halfway.** Applying the user's changes to the planning docs, my
+   first script failed on one line-wrapped match after the spec was already written; I re-ran the
+   rest and grep-checked every file before committing.
+- Not observed in the compose run: in step 7 all 20 parallel distribute requests answered 200 (the
+  later ones were no-ops), so the 409 path for that race is shown only by the PostgreSQL test.
+
+### Quickstart results (compose, `down -v` + `up --build`)
+- `GET /api/dsps` → Apple Music, Spotify, YouTube Music.
+- PATCH submitted → distributed → 409 "A track becomes distributed when it is sent to at least one
+  platform. Use Distribute to send it."; `allowedNextStatuses` `["draft"]`.
+- Distribute Spotify + Apple Music → 200, distributed, two pending rows by name; again with Spotify +
+  YouTube Music → Spotify unchanged, YouTube Music added.
+- Draft → 409; `[]` → 400 "Choose at least one platform."; unknown id → 400 "Unknown platform: …";
+  21 distinct ids → 400; no token → 401.
+- Spotify live → answer time set; again → 409 "The delivery is already live."; Apple Music rejected →
+  200; `pending` → 400; a platform never sent to → 404.
+- Apple Music sent again → pending, new sent time, answer cleared.
+- 20 parallel distributes of one new platform → 20×200, one row. Distribute + withdraw at once on a
+  submitted track → one 200, one 409; the track ended distributed with one delivery.
+- Anonymous GET → deliveries with names and statuses, no email.
+- 1,000 tracks: detail of a track with three deliveries 7–8 ms (SC-005 < 1 s).
+
+### Frontend (same phase)
+_To be added with the frontend PR._

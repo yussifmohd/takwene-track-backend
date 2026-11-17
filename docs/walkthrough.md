@@ -245,5 +245,68 @@ Quickstart results are in `docs/ai-log.md` (Phase 3).
 
 ### Known limitations
 - Tracks cannot be edited or deleted yet (out of scope, clarified).
-- Distributions are always empty until Phase 4.
+- Distributions are always empty in this phase (deliveries arrive with Phase 4).
 - Artist search is a substring match on the name (no accent/diacritic folding).
+
+---
+
+## Phase 4 – Distribution (`005-track-distribution-to-dsps`)
+
+### What was built
+Deliveries of a track to platforms. An admin distributes a submitted (or already distributed) track
+to one or more platforms; each platform gets one delivery (pending, live or rejected) with the time
+it was sent and the time the platform answered. Because no real platform is connected, the admin
+records the answer (live or rejected) for pending deliveries. A rejected delivery can be sent again.
+The status change endpoint no longer moves a track to distributed: only Distribute does, so a
+distributed track always has at least one delivery.
+
+### Important files
+| Path | What it does |
+|---|---|
+| `src/TrackManagement.Domain/Tracks/TrackDistribution.cs` | Child entity of `Track` (key track + platform): `Send`, `SendAgain`, `Answer`; `DistributeResult`. |
+| `src/TrackManagement.Domain/Tracks/DistributionStatus.cs` | Delivery statuses, wire names, `DistributionStatusRules` (pending → live/rejected only, refusal messages). |
+| `src/TrackManagement.Domain/Tracks/Track.cs` | `Distribute` (new → pending, rejected → re-sent, pending/live untouched; submitted → distributed), `RecordAnswer`, `AllowedNextStatuses`, `CanDistribute`. Every change stamps `UpdatedAtUtc`. |
+| `src/TrackManagement.Domain/Tracks/TrackStatusRules.cs` | `Check(from, to, hasDistributions)`: submitted → distributed refused without a delivery. |
+| `src/TrackManagement.Application/Features/Tracks/Commands/DistributeTrack/` | Validator (not empty, ≤ 20 distinct ids) and handler (unknown platform → 400 `dspIds`, draft → 409, no-op → 200). |
+| `src/TrackManagement.Application/Features/Tracks/Commands/RecordDistributionAnswer/` | Validator (`live`/`rejected` only) and handler (404 when never sent there, refusals → 409). |
+| `src/TrackManagement.Application/Features/Tracks/TrackDtos.cs` | `TrackDistributionDto` (name, status, times, `allowedAnswers`), `TrackDetailDto.canDistribute`; one `Create` shared by handlers and the SQL projection. |
+| `src/TrackManagement.Application/Features/Dsps/DspNames.cs` | Platform names by id (one small query) for command responses. |
+| `src/TrackManagement.Infrastructure/Persistence/Configurations/TrackDistributionConfiguration.cs` | `pk_track_distributions`, status check, "answered exactly when not pending" check, FK to `dsps`. |
+| `src/TrackManagement.Infrastructure/Persistence/Migrations/*_AddTrackDistributions.cs` | The `track_distributions` table (schema only; no data changes). |
+| `src/TrackManagement.Api/Endpoints/TrackEndpoints.cs` | `POST /distribute`, `PATCH /distributions/{dspId}`. |
+| `src/TrackManagement.Api/ExceptionHandlers/UniqueConstraintExceptionHandler.cs` | Two racing first deliveries to one platform → 409 `errors.dspIds`. |
+| `tests/.../Integration/DistributionPersistenceTests.cs` | Real PostgreSQL: checks, FK, three races between admins, detail read time with 1,000 tracks. |
+
+### Request flow: `POST /api/tracks/{id}/distribute`
+1. Pipeline as before → `.RequireAdmin()`; body `{ dspIds }` (32 KB cap).
+2. Validation behavior: missing/empty list or more than 20 distinct ids → 400 `errors.dspIds`.
+3. Handler loads the track with its artist and deliveries (tracked) → 404 if missing; loads all
+   platforms once; unknown ids → `Result.Invalid` on `DspIds` → 400.
+4. `track.Distribute(ids, now)`: draft → `NotAllowed` → 409; otherwise new platforms get pending
+   deliveries, rejected ones are re-sent, the track becomes distributed and `UpdatedAtUtc` is set.
+   Nothing to send → unchanged, still 200.
+5. Unit of Work saves once: `INSERT`/`UPDATE track_distributions` plus `UPDATE tracks … WHERE xmin = @loaded`.
+   A concurrent change to the same track → 409 (row version); two first deliveries to one platform → 409 (primary key).
+
+### Key decisions and why
+- **Deliveries belong to the Track aggregate**: the "distributed needs a delivery" rule spans both,
+  and stamping the track on every delivery change lets `xmin` serialise all races on one track.
+- **PATCH to distributed is a 409** (user decision): a distributed track must say where it went.
+- **No data migration** (user decision): no real data existed; local databases from before are reset
+  with `docker compose down -v` (README).
+- **Platform count is data**: requests accept up to 20 distinct ids (a request limit, not a rule);
+  ids are checked against the stored platforms.
+- **The API lists what is allowed** (`allowedNextStatuses`, `canDistribute`, `allowedAnswers`), so the
+  web app keeps no copy of the rules.
+- **Distribute always answers 200 with the track**, also when nothing changed: the result is the
+  state the admin asked for.
+
+### How to run and test
+`docker compose down -v && docker compose up --build -d`, sign in, then the curl examples in the README.
+`dotnet test --solution TrackManagement.slnx` (471 tests, 31 on PostgreSQL via Docker).
+Quickstart results are in `docs/ai-log.md` (Phase 4).
+
+### Known limitations
+- Platform answers are simulated by the admin; no platform is called.
+- Deliveries cannot be withdrawn and a live delivery is final.
+- Seed data with varied deliveries is not there yet (local data is created through the API or web app).
