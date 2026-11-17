@@ -22,7 +22,7 @@ Entries are appended per phase and never rewritten.
   the reference (handler interfaces, real Unit of Work, AsNoTracking projections, ProblemDetails).
   The developer also asked for a test proving the Unit of Work never runs for queries and an early
   Ardalis.Specification + EF Core 10 compatibility test.
-- Developer wrote/changed: _Developer notes: (to be filled in by Yousef)_
+- Developer wrote/changed: _Developer notes (Yousef):_ Local Postgres already used port 5432, so I set `POSTGRES_HOST_PORT=5433` in my `.env`. I ran both compose stacks and checked the health page myself, checked the CI checks on both PRs, and merged them with merge commits.
 
 ### (b) Security
 | Issue | Where | Introduced/found by | Handling | Status |
