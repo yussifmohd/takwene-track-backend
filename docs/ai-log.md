@@ -310,7 +310,7 @@ email; anonymous create → 401; malformed JSON and `page=abc` → 400; `pageSiz
   tests (132 total, was 95), and a throwaway real-browser script (not committed).
 - Developer decided: artist email required (form field required as in the API); accepted the add-artist
   page and the country dropdown defaults.
-- Developer wrote/changed: _Developer notes (Yousef):_ see the Phase 2 developer notes above (they cover both repos).
+- Developer wrote/changed: _Developer notes (Yousef):_ "I tested the artists list, paging, the add-artist form (validation and duplicate email) and the sign-out redirect in the browser, and I tested the Phase 2 API in Scalar before merging both PRs."
 
 **(b) Security**
 | Issue | Where | Introduced/found by | Handling | Status |
