@@ -21,9 +21,9 @@
 
 ## R2 – What the sample contains
 - 17 artists (9 MENA, 8 international), 32 tracks, deliveries on all three platforms in every state.
-  Full list in `data-model.md`. Titles are well-known real songs (international, and MENA too, so the
-  catalogue reads naturally); **release dates, ISRCs, statuses, deliveries and emails are invented**.
-- **ISRC**: `XX-SMP-YY-9NNNN`. `XX` is in ISO 3166's user-assigned range (not a country), `SMP` marks
+  Full list in `data-model.md`. Names, countries, titles, pairings and genres are true and verified by web
+  search (sources cited per row); **release dates, ISRCs, statuses, deliveries and emails are invented**.
+- **ISRC**: `XX-SMP-26-9NNNN`. `XX` is in ISO 3166's user-assigned range (not a country), `SMP` marks
   "sample", designations start at 90001. Valid format, recognisable as invented, not checked against
   any registry.
 - **Email**: `<slug>@example.com` (RFC 2606 reserved domain).
@@ -47,8 +47,8 @@
   `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
   `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` (JSON needs nothing),
   `Cache-Control: no-store` on every `/api` response (tokens and admin-only emails must not be cached;
-  the data changes anyway). The Development-only Scalar/OpenAPI paths get no CSP override (they would
-  break) – documented.
+  the data changes anyway). The API's restrictive CSP is **not applied** to the Development-only
+  Scalar and OpenAPI pages, so they keep working; every other response gets it – documented.
 - **HSTS**: not enabled – there is no HTTPS without a domain (AWS decision 23). Documented.
 
 ## R5 – Authorization on every change route
@@ -72,7 +72,9 @@
   during sign-in, a failed sign-in and a create, and asserts no password, token, signing key or
   connection string appears.
 - Enumeration: unknown email already runs a dummy hash; lockout answers like a wrong password. **Evidence**:
-  existing tests + a timing sample (100 attempts each) recorded in the review.
+  existing tests + a measured timing sample (100 attempts each: median and p90 for unknown email vs
+  wrong password) whose numbers are recorded in the review (A6: measured, not an automated test,
+  because timing tests are flaky).
 
 ## R8 – CORS
 - Already an allow-list from `Cors:AllowedOrigins`. **Tighten**: methods to `GET, POST, PATCH` (no PUT or

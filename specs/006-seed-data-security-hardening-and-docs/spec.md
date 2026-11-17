@@ -10,7 +10,7 @@
 
 ## Clarifications
 
-### Session 2026-11-17 (recommended defaults – pending the user's OK)
+### Session 2026-11-17 (Q1–Q5 and A1–A6 confirmed by the user, with the changes listed after Q5)
 
 - Q1: When is sample data added, and how is real data protected? → A: Under the existing
   migrate-on-startup switch, **only into an empty catalogue** (no artists and no tracks). If any
@@ -26,6 +26,19 @@
   set to "distributed" without being sent to any platform (Phase 3 design, flagged in the
   developer's Phase 3 notes, changed by the developer in Phase 4). Alternative: the unreadable
   dropdowns found by the developer in manual testing.
+- **User changes at the OK checkpoint**:
+  - Every real artist–song pairing, country, genre and title must be true: verified by web search,
+    sources cited in `data-model.md`; unverifiable pairings replaced. Everything else (ISRCs, emails,
+    dates, statuses, deliveries) is clearly marked sample data.
+  - No "Pop" genre: every sample song fits the existing fixed list truthfully (reasoning in `data-model.md`).
+  - Q3: all 21 development-tool `npm audit` findings are listed in the security review and DECISIONS.md
+    as known – fixed by removal or accepted – with the reason and the evidence that none ship to browsers.
+  - Q4: the Readex Pro license file ships with the font; a real browser shows no request to Google.
+  - Q5 wording: the assignment's PATCH wording invited it; the AI modelled "distributed" without recording
+    which platforms; the developer caught it and had it changed in Phase 4.
+  - A6: the measured sign-in timing numbers are recorded in the security review.
+  - DECISIONS.md also records the technical and business decisions and the recommendations given
+    since the start of the project (who proposed, who decided, why).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -71,7 +84,7 @@ look like a real catalogue record, contact or chart fact.
 
 1. **Given** the sample catalogue, **Then** every artist email ends in `@example.com`.
 2. **Given** the sample catalogue, **Then** every ISRC has the valid format but is invented
-   (a registrant code reserved for the sample), and no two collide.
+   (an invented `XX-SMP` prefix that marks it as sample), and no two collide.
 3. **Given** the README, **Then** it states that all seed data is sample data, that ISRCs, emails,
    statuses and deliveries are invented, and how to start without it.
 4. **Given** the repository, **Then** no admin password exists in any committed file.
@@ -125,7 +138,8 @@ evidence (test, command output or file).
 2. **Given** DECISIONS.md, **Then** it answers exactly the three questions: (1) what the AI generated
    and what the developer wrote or changed, (2) security issues found or introduced and how they were
    handled, (3) one real, specific thing the AI got wrong that the developer fixed and why it was
-   wrong; every statement traces to `docs/ai-log.md` or the developer's notes.
+   wrong; every statement traces to `docs/ai-log.md` or the developer's notes. It also records the
+   technical and business decisions and recommendations since the start of the project.
 3. **Given** `docs/study-guide.md`, **Then** it explains the architecture in plain language, has a
    glossary (CQRS, Result pattern, Unit of Work, Specification, ProblemDetails, rate limiting, JWT),
    20 likely evaluator questions with short honest answers, and what was AI-generated versus changed
@@ -156,7 +170,7 @@ evidence (test, command output or file).
 - Someone deletes some sample tracks but keeps others → the catalogue is not empty, nothing is
   re-added.
 - An ISRC typed by a user equals a sample ISRC → refused as a duplicate (the normal rule); sample
-  ISRCs use a reserved invented registrant so this only happens on purpose.
+  ISRCs use the invented `XX-SMP` prefix, so this only happens on purpose.
 - Rate limits behind the web app's proxy → limits apply per real client address (trusted proxy
   rules from sign-in), not per proxy.
 
@@ -172,12 +186,14 @@ evidence (test, command output or file).
   at least one more country; Arabic-script and Latin-script names) and at least 6 international
   artists (United Kingdom as `GB`, United States as `US`), each with an `@example.com` email.
 - **FR-003**: The sample MUST contain at least 30 tracks covering every genre and every status, with
-  invented ISRCs in the valid format; international artists use well-known real song titles.
+  invented ISRCs in the valid format. Artist names, countries, song titles, artist–song pairings and
+  genres MUST be true (verified, sources in `data-model.md`); ISRCs, emails, dates, statuses and
+  deliveries are invented.
 - **FR-004**: The sample MUST contain deliveries on all three platforms in every state (pending, live,
   rejected), and MUST respect every rule of the product: each distributed track has at least one
   delivery, draft tracks have none, statuses are reachable by allowed moves, answers come after sends.
 - **FR-005**: Adding the sample MUST be all-or-nothing and safe when several instances start together.
-- **FR-006**: The sample MUST NOT create, change or reveal the admin account or its password.
+- **FR-006**: The sample MUST NOT create, change or reveal the admin account or its password (tested).
 
 **Security**
 
