@@ -123,7 +123,7 @@ Entries are appended per phase and never rewritten.
   load balancer in Phase 6); required the Admin-policy proof endpoint to live only in the test
   project; fixed the JWT rules (issuer, audience, lifetime, signature, HS256 only, skew ≤ 30 s);
   asked for CI actions on Node 24 and a clean container log (no `libgssapi_krb5` noise).
-- Developer wrote/changed: _Developer notes (Yousef):_ I reviewed the Phase 1 plan before approving it and asked for four changes: IdentityServiceTests in Phase 1 instead of Phase 4, trusted proxy ranges moved into configuration so the AWS load balancer works later, the test-only Admin endpoint kept out of production builds, and stricter JWT validation (HS256 only, 30 s clock skew). I questioned why the admin password lives in .env and not in appsettings.json, and confirmed it is there so no secret is committed. I reviewed both PRs and their CI checks on GitHub and merged them with merge commits.
+- Developer wrote/changed: _Developer notes (Yousef):_ I reviewed the Phase 1 plan before approving it and asked for four changes: IdentityServiceTests in Phase 1 instead of Phase 4, trusted proxy ranges moved into configuration so the AWS load balancer works later, the test-only Admin endpoint kept out of production builds, and stricter JWT validation (HS256 only, 30 s clock skew). I reviewed both Phase 1 PRs and their CI checks on GitHub and merged them with merge commits. I questioned why the admin password lives in .env and not in appsettings.json, and confirmed it is there so no secret is committed. I tested sign-out in the browser, reported it as a bug, and after investigation we found sign-out worked but landed on a public page that looked unchanged, so I decided it should redirect to the login page.
 
 ### (b) Security
 | Issue | Where | Introduced/found by | Handling | Status |
@@ -169,7 +169,8 @@ Entries are appended per phase and never rewritten.
   total), and a throwaway Edge DevTools-protocol script (not committed) for real-browser checks and
   screenshots.
 - Developer decided: approved F1/F2 clarifications (session in localStorage with the documented
-  trade-off; sign-out from a protected page goes to the status page).
+  trade-off; sign-out from a protected page goes to the status page). After using it, changed the
+  second one: every sign-out now lands on the sign-in page (frontend PR #4, see below).
 - Developer wrote/changed: _Developer notes (Yousef):_ see the Phase 1 developer notes above (they cover both repos).
 
 **(b) Security**
@@ -196,34 +197,105 @@ Entries are appended per phase and never rewritten.
   broke my own license/pinning rule; noted in Memory.md to not repeat.
 - **Header wrapped on desktop when signed in**, and the side note sat 16 px off the form; found in
   screenshots and fixed (e1509ff).
-- **Phase 1 shipped a sign-out/session bug that its tests did not catch** (reported by Yousef after
-  the merge; fixed in frontend PR `fix-sign-out-session-state-after-reload`, commits b521cdc,
-  7b369b3, dc9a70a). Symptoms: after Sign out the header's right side looked half-rendered while the
-  toast showed; after a reload the stored session and the app's state could disagree.
-  Exact causes, reproduced in real Edge before fixing:
-  1. *Stale stored session.* The persist `merge` step dropped an expired, malformed or unreadable
-     stored session **in memory only**. zustand persist writes to storage only when state changes,
-     so the rejected entry stayed in `localStorage` (the app said "Sign in", storage still held a
-     token) until some later write removed it.
-  2. *Clock inside selectors.* `useIsAuthenticated`/`useIsAdmin` compared `expiresAt` with
-     `Date.now()` inside zustand selectors. Selectors only re-run on store changes, so components
-     rendered at different moments could disagree about being signed in near expiry.
-  3. *Cross-tab clear ignored.* The `storage` listener returned early for `key === null`
-     (`localStorage.clear()` / cleared site data in another tab), leaving that tab signed in.
-  4. *Toast over the header.* `<Toaster position="top-right">` sat exactly on the Sign in / Sign out
-     controls, so the control that had just changed was covered for ~4 s.
-  Fix: storage validates on read and removes what it rejects; "signed in" means the store holds a
-  session; expiry becomes a store change (`endExpiredSession()` from the timer, focus/visibility and
-  before each API call); the listener handles `key === null` and reads storage instead of the event
-  payload; toasts are fixed at bottom-right in the Toaster wrapper.
-  **Why the tests missed it:** (a) the "drops an expired/malformed stored session" tests asserted the
-  in-memory session only, never `localStorage`; (b) the shared `afterEach` helper calls
-  `localStorage.clear()`, so a leftover entry never survived into a later test; (c) no test simulated
-  a reload and then checked header, guard, login page and storage together; (d) `key === null`
-  storage events were never tested; (e) jsdom has no layout and the route tests do not mount the
-  Toaster, so an overlap cannot be seen there – and my Phase 1 real-browser run checked routes and
-  storage after the toast had faded, not while it was visible. 12 new tests (incl. a reload
-  regression suite) and 5 strengthened ones were run against the old code first: 11 fail there,
-  all 93 pass with the fix.
-  Lesson: assert storage *and* every UI place after a simulated reload, and take real-browser
-  screenshots during transient UI (toasts), not after it.
+- **After the merge: a reported sign-out "bug", my overclaimed diagnosis, and what it really was.**
+  Yousef reported that after Sign out the header looked wrong and the state after a reload seemed
+  inconsistent. I did **not** reproduce a failure before writing the fix. While investigating in real
+  Edge I found four genuine edge cases and fixed them in frontend PR #3
+  (`fix-sign-out-session-state-after-reload`, commits b521cdc, 7b369b3, dc9a70a):
+  1. the persist `merge` step dropped an expired/malformed stored session in memory only, so the
+     rejected entry stayed in `localStorage` until a later write;
+  2. `useIsAuthenticated`/`useIsAdmin` compared `expiresAt` with `Date.now()` inside zustand selectors,
+     so components rendered at different moments could disagree near expiry;
+  3. the `storage` listener ignored `key === null` (another tab clearing all site data);
+  4. the top-right toast covered the header's Sign in / Sign out controls for ~4 s.
+  These are real and their tests fail on the old code (11 of 17), but **in the PR and in this log I
+  presented them as the cause of the reported bug, which I had not shown.** That is the actual
+  mistake: a diagnosis stated as fact from suspected causes.
+  Yousef then reported the problem again on `main` after PR #3. This time I tried to reproduce it
+  against the full compose stack in headless and headed Edge, headed Chrome 157 (his browser), the
+  Vite dev server, widths 400–1920 px and with slow/racing requests, tracing the click handler,
+  store, storage, query cache, router and guard. Sign-out worked every time: session, storage
+  entry and account cache were cleared and the header switched to "Sign in". What Yousef saw was a
+  **UX expectation, not a failure**: signing out on the status page left you on that public page,
+  which looks almost the same signed in and signed out. He decided sign-out should always land on
+  the sign-in page; frontend PR #4 (`fix-sign-out-redirect-and-screen-state`) does that, and after an
+  automatic sign-out (expiry/401) the sign-in page explains why and returns you to the page you
+  were on (own pages only). That change is a product decision, not an AI mistake.
+  Lesson: reproduce first; if a report cannot be reproduced, say so and ask what was expected
+  instead of fixing the nearest suspicious code and calling it the cause.
+
+## Phase 2 – Artists & DSPs (003-artists-and-dsps-management / 003-artists-and-dsps-management) – 2026-11-17
+
+### (a) Generated vs written
+- AI generated (Spec Kit): spec, clarifications (recommended defaults 1–5), plan, research R1–R13,
+  data model, contract intent, quickstart, tasks T001–T038 and the analyze report.
+- AI generated (code): ISO 3166-1 country list (249 codes, hash shared with the web app), `Artist`
+  and `Dsp` entities, the fixed DSP seed in the migration, create/list artists and list DSPs use cases,
+  shared text/paging rules, `AuditableEntityInterceptor`, UTF-8 startup check, conflict → 409 mapping,
+  `BadRequestExceptionHandler`, `UniqueConstraintExceptionHandler`, 32 KB body limit, OpenAPI schema
+  transformer for fields omitted when null, Testcontainers PostgreSQL fixture, all new tests (239 total,
+  13 of them against real PostgreSQL).
+- Developer decided: artist email required (assignment's Artist entity); Testcontainers tests in the
+  same test project behind `Category=Integration`, with CI running both; the two earlier bugs logged as
+  mistakes below; accepted the other defaults.
+- Developer wrote/changed: _Developer notes (Yousef):_ I reviewed the plan before approving it and changed three things: the artist email is required to match the assignment's Artist entity, Testcontainers tests stay in the same test project behind a test category so unit tests run without Docker, and the two earlier bugs must be logged as mistakes. I accepted the other defaults (paging, UTF-8 startup check, 32 KB body cap, add-artist page, country dropdown).
+
+### (b) Security
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| Artist emails (personal data) exposed by a public read | `GET /api/artists` | AI design (clarification) | email selected in SQL only for a signed-in admin; omitted from JSON otherwise; tests for anonymous, non-admin token and admin; README states it | done |
+| Duplicate email via concurrent requests | create artist | AI design | validator check + unique index on the normalised email; 23505 on that index → same 409 `errors.email`; compose run: 20 parallel creates → 1×201, 19×409, 1 row | done |
+| Oversized bodies | all endpoints | AI design | `Api:MaxRequestBodyBytes` 32 KB (Kestrel limit + Content-Length guard) → 413 ProblemDetails | done |
+| Malformed input answered with 500 (and a stack trace in the log as an "error") | Development | Phase 0 code, found in Phase 2 planning | see mistake 1; parser details never in the response body (test) | fixed |
+| Over-posting | create artist | AI design | request record with three strings → command → `Artist.Create`; entity never bound | done |
+| Corrupted Arabic names on a non-UTF-8 database | startup | AI design (Phase 0 analysis) | `DatabaseEncodingCheck` after migrations: anything but UTF8 stops startup with the reason; tested on a `SQL_ASCII` database | done |
+| Request log showing the wrong status | logging | found by AI in the compose run | see mistake 4 | fixed |
+
+### (c) Mistakes & fixes
+1. **Malformed JSON returned 500 in Development** (since Phase 0). Minimal APIs set
+   `RouteHandlerOptions.ThrowOnBadRequest = true` in Development, so a body that is not valid JSON, a
+   wrong JSON type or a non-numeric query value throws `BadHttpRequestException` instead of writing 400.
+   The only registered exception handler was `GlobalExceptionHandler`, which turns every exception
+   into 500. In Testing/Production the framework wrote 400 itself, which is why no earlier test caught
+   it (they all ran in "Testing"). Fix: `BadRequestExceptionHandler`, registered before the global
+   one, answers with the exception's own status (400/413) as ProblemDetails without parser details.
+   `MalformedRequestTests` run in Development, Testing and Production; with the new handler removed,
+   exactly the three Development cases fail (500).
+2. **Created/updated timestamps were never filled** (latent since Phase 0). `IAuditableEntity`
+   (`CreatedAtUtc`, `UpdatedAtUtc`) existed in the Domain, but no entity implemented it and nothing
+   set the values: no interceptor, no `SaveChanges` override. The first auditable entity would have
+   been stored with `0001-01-01` and no update time. Fix: `AuditableEntityInterceptor` (uses
+   `TimeProvider`) sets `CreatedAtUtc` on insert when unset and `UpdatedAtUtc` on update, registered on
+   the `DbContext`; `Artist.Create` takes the creation time from the handler's `TimeProvider` because the
+   201 body needs it before the Unit of Work saves. Tested with EF InMemory and against PostgreSQL.
+3. **Test hosts wrote into each other's logs** (Phase 1 code, surfaced now). `UseSerilog(...)` without
+   `preserveStaticLogger: true` assigns the host logger to the static `Log.Logger`, and the logger
+   factory writes through that static at log time, so with several in-process hosts every host logged
+   into the one started last. Phase 2 starts many more hosts in parallel and the Phase 1 test
+   `FailedSignIn_LogsNeitherPasswordNorFullEmail` failed in every full run (passed alone). Fix:
+   `preserveStaticLogger: true`. My first version of the fix had a gap: Serilog's request-logging
+   middleware then fell back to the static *startup* logger, so request lines skipped the host's sinks
+   and configuration. Caught by a new test looking for the request line in the host's own sink; fix:
+   pass the host logger to `UseSerilogRequestLogging`. `LogIsolationTests` fails without the fix.
+4. **Request log said "responded 500" for requests that got 400/413.** `UseSerilogRequestLogging` sat
+   inside `UseExceptionHandler`, so it saw the exception pass and logged 500 before the handler wrote
+   400. Found in the compose logs during the quickstart run (the client had received 400). Fix: request
+   logging first in the pipeline; test asserts the logged status.
+5. Smaller ones, all caught before commit: the Docker image did not copy `.editorconfig`, so it built
+   with different analyzer rules than local/CI (the new migration failed CA1861 only in Docker; the
+   file is now copied and EF migrations are marked generated code); the PostgreSQL test fixture first
+   missed the Identity schema pin (EF "pending model changes"); the first contract export had `Page`/
+   `PageSize` query names and listed `email` as required although visitors never get it (fixed with
+   explicit query names and a schema transformer); a `PagedResult` name clash with Ardalis.Result.
+- **Known log lines left as-is:** a duplicate-email race that reaches the database is logged by EF as
+  `ERR Failed executing DbCommand` + "exception while saving changes" before the handler turns it into
+  409. It only happens when two creates with the same email race; hiding EF errors globally would hide
+  real ones.
+
+### Quickstart results (compose, `down -v` + `up --build`)
+DSPs: Apple Music `…0002`, Spotify `…0001`, YouTube Music `…0003`; restart → still 3, same ids,
+`server_encoding` UTF8. Four Arabic/mixed names created and listed unchanged; `eg` → `EG`;
+duplicate ` Q0@EXAMPLE.com ` → 409 `errors.email`; invalid fields → 400 naming name, countryCode,
+email; anonymous create → 401; malformed JSON and `page=abc` → 400; `pageSize=51` → 400; 40 KB body
+→ 413; anonymous list without `email`, admin list with. 1,000 artists: pages 1, 25 and 50 in 8, 25 and
+9 ms (target < 1 s).
