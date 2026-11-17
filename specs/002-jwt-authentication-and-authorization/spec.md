@@ -10,7 +10,7 @@
 
 ## Clarifications
 
-### Session 2026-11-17 (recommended defaults applied; pending user confirmation at the analyze checkpoint)
+### Session 2026-11-17 (recommended defaults, confirmed by the user at the analyze checkpoint)
 
 - Q: What does a locked-out account see when it signs in? → A: The same generic "invalid email or password" error as any failure (no account-existence or lockout signal); lockouts are logged server-side. The lock clears itself after 15 minutes.
 - Q: Lockout and throttling numbers? → A: 5 consecutive failures lock the account for 15 minutes; 10 sign-in attempts per minute per client, excess refused with "too many requests" and a retry time.

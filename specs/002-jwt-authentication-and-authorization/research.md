@@ -50,7 +50,8 @@ and forwarded headers are part of the shared framework. Test time control uses a
 - In compose, requests from the web app arrive from the nginx container. `UseForwardedHeaders`
   with `KnownIPNetworks` from config (`ReverseProxy:KnownNetworks`, compose: `172.16.0.0/12`)
   restores the original client IP; requests from untrusted sources keep their socket address
-  (spoofed `X-Forwarded-For` ignored). AWS (Phase 6) will set the VPC CIDR for the ALB.
+  (spoofed `X-Forwarded-For` ignored). Ranges are configuration only (compose reads
+  `REVERSE_PROXY_KNOWN_NETWORK` from `.env`); AWS (Phase 6) sets the VPC CIDR for the ALB.
 - In-memory limiter state is per instance; with 2 EC2 instances the effective limit is ≤ 20/min,
   acceptable and noted for Phase 6.
 

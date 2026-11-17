@@ -111,20 +111,26 @@ docker-compose.yml / .env.example (ADMIN__EMAIL, ADMIN__PASSWORD placeholder, Re
    the password hasher against a dummy hash so its timing matches a wrong password. Every failure
    → `Result.Unauthorized(AuthErrors.InvalidCredentials)` ("Invalid email or password.").
    Success → `IJwtTokenService.Create(user)` → `LoginResponse(accessToken, "Bearer", expiresAt, user{email, roles})`.
-3. **Tokens**: `JsonWebTokenHandler`, HS256, claims `sub`, `email`, `role` (one per role), `jti`, `iat`;
+3. **Tokens** (user-confirmed rules): validate issuer, audience, lifetime and signature; accept
+   **only HS256**; clock skew **30 s** (≤ 30 s). `JsonWebTokenHandler`, HS256, claims `sub`, `email`, `role` (one per role), `jti`, `iat`;
    `exp` = now + `Jwt:ExpirationMinutes` (60) from `TimeProvider`. Validation: issuer, audience,
    lifetime, signing key, `ValidAlgorithms = [HS256]`, `ClockSkew = 30 s`, `MapInboundClaims = false`,
    `RoleClaimType = "role"`, `NameClaimType = "email"`.
 4. **Authorization**: policy `AuthPolicies.Admin` = authenticated + role `Admin`; `RequireAdmin()`
    extension for endpoint groups (used from Phase 2). No fallback policy (reads stay public).
+   **The endpoints that prove the policy (`/test/admin-only`, `/test/public`) live only in the test
+   project** (`TestApiFactory` adds them through an `IStartupFilter`), so they never exist in
+   production builds.
    401/403 bodies come from the existing `UseStatusCodePages()` + ProblemDetails service (verified by tests);
    `WWW-Authenticate: Bearer` kept.
 5. **Rate limiting**: `AddRateLimiter` named policy `login`: fixed window, permit 10, window 60 s,
    queue 0, partition = client IP (after forwarded headers); `OnRejected` → 429 ProblemDetails +
    `Retry-After`. Values bound from `RateLimiting:Login` so tests can lower them.
-6. **Forwarded headers**: `X-Forwarded-For`/`Proto`, `ForwardLimit = 1`, trusted networks from
-   `ReverseProxy:KnownNetworks` (CIDR list; compose sets the Docker private range `172.16.0.0/12`;
-   default trusts loopback only) so throttling sees the real client behind nginx (spec edge case).
+6. **Forwarded headers**: `X-Forwarded-For`/`Proto`, `ForwardLimit = 1`. Trusted proxy ranges are
+   **configuration only**: `ReverseProxy:KnownNetworks` (CIDR array, env `ReverseProxy__KnownNetworks__0..n`).
+   Code default is empty (loopback only). Compose passes `${REVERSE_PROXY_KNOWN_NETWORK:-172.16.0.0/12}`
+   from `.env` (Docker private range); Phase 6 sets the VPC CIDR of the AWS load balancer the same way.
+   Invalid CIDRs fail startup validation. Documented in README and Memory.md.
 7. **Current user**: `ICurrentUser` (Api, from `HttpContext.User`) → `GetCurrentUserQuery` returns
    `{ email, roles, expiresAt }` from validated claims; endpoint `RequireAuthorization()`.
 8. **Admin seeding**: `AdminSeeder : ISeeder` (runs with `Database:MigrateOnStartup`). Ensures role

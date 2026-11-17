@@ -30,7 +30,7 @@ description: "Task list for Phase 1 – Admin Sign-in & Access Control (API serv
 - [ ] T008 [P] Test `tests/TrackManagement.UnitTests/Infrastructure/Auth/JwtTokenServiceTests.cs`: claims sub/email/role/jti, iss/aud, exp = now + 60 min (test `TimeProvider`), HS256 header, validates with the configured parameters
 - [ ] T009 `src/TrackManagement.Infrastructure/Auth/JwtTokenService.cs` (JsonWebTokenHandler, HS256) and `Auth/JwtBearerOptionsSetup.cs` (`IConfigureNamedOptions<JwtBearerOptions>`: validate issuer, audience, lifetime, key; `ValidAlgorithms=[HS256]`; `ClockSkew=30s`; `MapInboundClaims=false`; role/name claim types); register `AddAuthentication(JwtBearer)` + `AddAuthorization` with `AuthPolicies.Admin`
 - [ ] T010 `src/TrackManagement.Api/Security/AuthPolicies.cs`, `EndpointConventionExtensions.RequireAdmin()`, `HttpCurrentUser : ICurrentUser`; Program.cs order `UseForwardedHeaders → UseExceptionHandler → UseStatusCodePages → UseSerilogRequestLogging → UseCors → UseRateLimiter → UseAuthentication → UseAuthorization`
-- [ ] T011 Extend `tests/TrackManagement.UnitTests/Api/TestApiFactory.cs`: test JWT settings, `IssueToken(roles, lifetime, key, issuer, audience)` helper, test-only endpoints `/test/admin-only` (RequireAdmin) and `/test/public`, rate-limit settings overridable, seeded admin via `Admin` options
+- [ ] T011 Extend `tests/TrackManagement.UnitTests/Api/TestApiFactory.cs`: test JWT settings, `IssueToken(roles, lifetime, key, issuer, audience)` helper, test-only endpoints `/test/admin-only` (RequireAdmin) and `/test/public` defined **only in the test project** via `IStartupFilter` (never in production code), rate-limit settings overridable, seeded admin via `Admin` options
 
 **Checkpoint**: solution builds; existing 48 tests still pass.
 
@@ -53,13 +53,14 @@ description: "Task list for Phase 1 – Admin Sign-in & Access Control (API serv
 ## Phase 4: User Story 2 – Generic failures, lockout, throttling (P1)
 
 ### Tests
-- [ ] T018 [P] [US2] In `LoginEndpointTests`: unknown email vs wrong password → both 401, identical `title`/`detail`/`type`; 400 field errors for bad input; 5 wrong then correct → 401; after lockout end (advance test `TimeProvider` used by Identity) → 200
-- [ ] T019 [P] [US2] `tests/TrackManagement.UnitTests/Api/Auth/LoginRateLimitTests.cs`: limit+1th request → 429 ProblemDetails + `Retry-After`; other clients (different forwarded IP from a trusted proxy) unaffected; spoofed `X-Forwarded-For` from an untrusted source ignored
-- [ ] T020 [P] [US2] Test that logs never contain the password or token (capture Serilog/ILogger output during a login)
+- [ ] T018 [P] [US2] In `LoginEndpointTests`: unknown email vs wrong password vs locked account → all 401 with identical `title`/`detail`/`type`; 400 field errors for bad input; 5 wrong then correct → 401; lockout expiry tested by setting the user's `LockoutEnd` to the past in the test database (Identity's lockout uses the system clock, not `TimeProvider` – analyze A1) → 200; 4 wrong + 1 correct resets the failure count (5th wrong afterwards does not lock) (A3)
+- [ ] T019 [P] [US2] `tests/TrackManagement.UnitTests/Api/Auth/LoginRateLimitTests.cs`: limit+1th request → 429 ProblemDetails + `Retry-After`, also with valid credentials (throttle before credential check, A4); other clients (different forwarded IP from a trusted proxy) unaffected; spoofed `X-Forwarded-For` from an untrusted source ignored
+- [ ] T020 [P] [US2] Test that logs never contain the password or token (capture ILogger output during a login)
+- [ ] T020a [P] [US2] `tests/TrackManagement.UnitTests/Infrastructure/Identity/IdentityServiceTests.cs` (A2, user: in Phase 1): unknown email runs the dummy-hash verification and returns the same generic error; wrong password and locked-out paths return the same error and log the right reason; logged email is masked (`a***@domain`), never the full email or password
 
 ### Implementation
-- [ ] T021 [US2] `src/TrackManagement.Api/Security/LoginRateLimiting.cs` (`AddLoginRateLimiting(configuration)`: fixed window from `RateLimiting:Login`, partition by IP, 429 ProblemDetails + Retry-After) and `ForwardedHeadersSetup.cs` (`ReverseProxy:KnownNetworks`, ForwardLimit 1); appsettings defaults
-- [ ] T022 [US2] Register Identity `TimeProvider` usage for lockout (Identity uses `TimeProvider` from DI in .NET 8+; confirm and document) 
+- [ ] T021 [US2] `src/TrackManagement.Api/Security/LoginRateLimiting.cs` (`AddLoginRateLimiting(configuration)`: fixed window from `RateLimiting:Login`, partition by IP, 429 ProblemDetails + Retry-After) and `ForwardedHeadersSetup.cs` (trusted ranges only from `ReverseProxy:KnownNetworks`, validated CIDRs, ForwardLimit 1, no hard-coded ranges); appsettings defaults (empty list)
+- [ ] ~~T022~~ Removed (analyze A1: Identity lockout uses the system clock; see T018)
 
 ---
 
@@ -83,16 +84,16 @@ description: "Task list for Phase 1 – Admin Sign-in & Access Control (API serv
 
 ### Implementation
 - [ ] T029 [US4] `src/TrackManagement.Infrastructure/Identity/AdminOptions.cs` + `AdminSeeder.cs` (`ISeeder`), registered in DI; appsettings `Admin` section with empty values
-- [ ] T030 [US4] `docker-compose.yml` (`Admin__Email`, `Admin__Password: ${ADMIN__PASSWORD:?…}`, `ReverseProxy__KnownNetworks__0: 172.16.0.0/12`), `.env.example` (`ADMIN__EMAIL=admin@takwene.local`, `ADMIN__PASSWORD=` placeholder with rules comment), README configuration table
+- [ ] T030 [US4] `docker-compose.yml` (`Admin__Email`, `Admin__Password: ${ADMIN__PASSWORD:?…}`, `ReverseProxy__KnownNetworks__0: ${REVERSE_PROXY_KNOWN_NETWORK:-172.16.0.0/12}`), `.env.example` documents `REVERSE_PROXY_KNOWN_NETWORK`, `.env.example` (`ADMIN__EMAIL=admin@takwene.local`, `ADMIN__PASSWORD=` placeholder with rules comment), README configuration table
 
 ---
 
 ## Phase 7: Polish & cross-cutting
 
-- [ ] T031 Run quickstart.md end to end on `docker compose up --build`; confirm `docker compose logs api | grep -i gssapi` is empty and the `IEntityTypeConfiguration` warning is gone
-- [ ] T032 [P] README: auth section (sign in via Scalar/curl, admin provisioning, lockout/rate limit, sign-out trade-off)
-- [ ] T033 [P] `docs/ai-log.md` Phase 1 entry (generated vs written, security table incl. reference issues fixed: lockout, enumeration; mistakes); add the user's Phase 0 developer notes when provided
-- [ ] T034 [P] Repo `Memory.md` (versions, state) and master `Memory.md`
+- [ ] T031 Run quickstart.md end to end on `docker compose up --build` (record login time for SC-001, A7); confirm `docker compose logs api | grep -i gssapi` is empty and the `IEntityTypeConfiguration` warning is gone
+- [ ] T032 [P] README: auth section (sign in via Scalar/curl, admin provisioning, lockout/rate limit, trusted proxy ranges `ReverseProxy:KnownNetworks` incl. AWS note, sign-out trade-off)
+- [ ] T033 [P] `docs/ai-log.md` Phase 1 entry (generated vs written, security table incl. reference issues fixed: lockout, enumeration; mistakes); Phase 0 developer notes added at the start of implementation
+- [ ] T034 [P] Repo `Memory.md` (versions, state, trusted proxy ranges config) and master `Memory.md`
 - [ ] T035 Full `dotnet test`, `docker compose up --build`, secret scan (`git grep` for password/key patterns, `.env` untracked); mark tasks [X]
 - [ ] T036 Push branch, open PR with `gh pr create` (summary, evidence, checklist); CI green without Node 20 annotation
 
