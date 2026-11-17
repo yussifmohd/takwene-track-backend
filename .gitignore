@@ -1,0 +1,26 @@
+# Build output
+bin/
+obj/
+artifacts/
+/openapi/
+*.user
+.vs/
+.idea/
+.vscode/
+
+# Tests & coverage
+TestResults/
+coverage/
+*.trx
+
+# Secrets / local config
+.env
+appsettings.*.local.json
+*.pfx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
