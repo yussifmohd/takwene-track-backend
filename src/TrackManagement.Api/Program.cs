@@ -20,11 +20,15 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    builder.Host.UseSerilog((context, services, logger) => logger
-        .ReadFrom.Configuration(context.Configuration)
-        .ReadFrom.Services(services)
-        .Enrich.FromLogContext()
-        .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture));
+    // preserveStaticLogger: each host keeps its own logger. Without it the host logger replaces the
+    // static Log.Logger and every in-process host (API tests) writes into the one started last.
+    builder.Host.UseSerilog(
+        (context, services, logger) => logger
+            .ReadFrom.Configuration(context.Configuration)
+            .ReadFrom.Services(services)
+            .Enrich.FromLogContext()
+            .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture),
+        preserveStaticLogger: true);
 
     builder.Services
         .AddApplication()
@@ -37,10 +41,13 @@ try
 
     // First, so everything after sees the real client IP (only from trusted proxies).
     app.UseForwardedHeaders();
+    // Outside the exception handler, so the request log shows the status the client received
+    // (inside it, a handled 400/413 was logged as "responded 500").
+    // The host's logger (sinks + configuration), not the static startup logger the middleware defaults to.
+    app.UseSerilogRequestLogging(options => options.Logger = app.Services.GetRequiredService<Serilog.ILogger>());
     app.UseExceptionHandler();
     app.UseRequestBodyLimit();
     app.UseStatusCodePages();
-    app.UseSerilogRequestLogging();
     app.UseCors(ApiServiceCollectionExtensions.CorsPolicyName);
     app.UseRateLimiter();
     app.UseAuthentication();
