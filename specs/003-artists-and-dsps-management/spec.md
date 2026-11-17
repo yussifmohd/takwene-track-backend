@@ -67,8 +67,9 @@ the items, order and totals; request without a token.
 2. **Given** 25 artists, **When** page 2 is requested, **Then** the remaining 5 are returned.
 3. **Given** a page past the end, **When** it is requested, **Then** an empty list is returned with
    the correct totals.
-4. **Given** page 0, a page size of 0 or 51, or non-numeric values, **When** requested, **Then**
-   the request is refused with a validation message.
+4. **Given** page 0 or a page size of 0 or 51, **When** requested, **Then** the request is refused
+   with a validation message naming the value; non-numeric values are refused as a malformed
+   request.
 5. **Given** no token, **When** the list is requested, **Then** artists are returned without email
    addresses; **Given** an admin token, **Then** email addresses are included.
 
@@ -131,6 +132,8 @@ stable identifier; restart and get the same identifiers.
 - Unknown fields in the request body are ignored; wrong types (e.g. a number for the name) →
   validation error, not a server error.
 - Request body far larger than the field limits → refused without being processed.
+- Malformed request data (invalid JSON, wrong types) → refused as a malformed request in every
+  environment, never as a server error.
 
 ## Requirements *(mandatory)*
 
@@ -157,9 +160,9 @@ stable identifier; restart and get the same identifiers.
 - **FR-010**: Artist email addresses MUST only be returned to a signed-in admin.
 - **FR-011**: Anyone MUST be able to list the distribution platforms (identifier and name),
   ordered by name.
-- **FR-012**: Exactly three platforms MUST exist after startup: Spotify, Apple Music and YouTube
-  Music, with identifiers that are the same in every environment; startup MUST add any that are
-  missing and never duplicate them.
+- **FR-012**: Exactly three platforms MUST exist once the database is set up: Spotify, Apple Music
+  and YouTube Music, with identifiers that are the same in every environment; repeated setups and
+  restarts MUST never duplicate them.
 - **FR-013**: Text MUST be stored and returned unchanged in full Unicode, including Arabic script
   (closes Phase 0 FR-013); length limits count characters.
 - **FR-014**: The service MUST refuse to start when the database's text encoding is not UTF-8.
