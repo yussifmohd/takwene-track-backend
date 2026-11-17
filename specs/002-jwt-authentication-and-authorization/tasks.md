@@ -91,10 +91,10 @@ description: "Task list for Phase 1 – Admin Sign-in & Access Control (API serv
 ## Phase 7: Polish & cross-cutting
 
 - [x] T031 Run quickstart.md end to end on `docker compose up --build` (record login time for SC-001, A7); confirm `docker compose logs api | grep -i gssapi` is empty and the `IEntityTypeConfiguration` warning is gone
-- [ ] T032 [P] README: auth section (sign in via Scalar/curl, admin provisioning, lockout/rate limit, trusted proxy ranges `ReverseProxy:KnownNetworks` incl. AWS note, sign-out trade-off)
-- [ ] T033 [P] `docs/ai-log.md` Phase 1 entry (generated vs written, security table incl. reference issues fixed: lockout, enumeration; mistakes); Phase 0 developer notes added at the start of implementation
-- [ ] T034 [P] Repo `Memory.md` (versions, state, trusted proxy ranges config) and master `Memory.md`
-- [ ] T035 Full `dotnet test`, `docker compose up --build`, secret scan (`git grep` for password/key patterns, `.env` untracked); mark tasks [X]
+- [x] T032 [P] README: auth section (sign in via Scalar/curl, admin provisioning, lockout/rate limit, trusted proxy ranges `ReverseProxy:KnownNetworks` incl. AWS note, sign-out trade-off)
+- [x] T033 [P] `docs/ai-log.md` Phase 1 entry (generated vs written, security table incl. reference issues fixed: lockout, enumeration; mistakes); Phase 0 developer notes added at the start of implementation
+- [x] T034 [P] Repo `Memory.md` (versions, state, trusted proxy ranges config) and master `Memory.md`
+- [x] T035 Full `dotnet test`, `docker compose up --build`, secret scan (`git grep` for password/key patterns, `.env` untracked); mark tasks [X]
 - [ ] T036 Push branch, open PR with `gh pr create` (summary, evidence, checklist); CI green without Node 20 annotation
 
 ---
