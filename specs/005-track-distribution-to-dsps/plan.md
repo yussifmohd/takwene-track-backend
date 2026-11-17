@@ -9,8 +9,9 @@
 ## Summary
 
 Add `TrackDistribution` (a delivery: track, DSP, status pending/live/rejected, submitted time, answer
-time) as part of the `Track` aggregate, with migration `AddTrackDistributions` (table, keys, checks and
-the one-time Q1 data fix). New endpoints: `POST /api/tracks/{id}/distribute` (Admin, 1–3 DSP ids) and
+time) as part of the `Track` aggregate, with migration `AddTrackDistributions` (table, keys, checks; no
+data changes – Q1). New endpoints: `POST /api/tracks/{id}/distribute` (Admin, one or more DSP ids, at
+most 20 distinct) and
 `PATCH /api/tracks/{id}/distributions/{dspId}` (Admin, simulated answer live/rejected). The status
 change to distributed now needs at least one delivery (409 otherwise); `allowedNextStatuses` follows.
 `GET /api/tracks/{id}` returns the deliveries (DSP name, status, submittedAt, answeredAt, allowed
@@ -27,8 +28,8 @@ serialises concurrent changes to one track.
 `tracks` cascade, FK `dsp_id` → `dsps` restrict).
 
 **Testing**: xUnit v3 + NSubstitute + Shouldly; API tests on EF InMemory; `Integration/` on
-Testcontainers PostgreSQL (parallel distribute, distribute vs status change race, check constraints,
-the Q1 migration on real data, detail projection ordering).
+Testcontainers PostgreSQL (parallel distribute, distribute vs status change race, answer vs re-send
+race, check constraints, detail projection ordering and timing).
 
 **Target Platform**: Linux containers (compose); AWS later.
 
@@ -39,7 +40,7 @@ with a join to `dsps` (`AsNoTracking`, split for the collection).
 
 **Constraints**: Admin-only writes; no 500 for client mistakes; rules only in the domain.
 
-**Scale/Scope**: 1 entity, 2 new endpoints, 1 changed rule, 1 migration with a data fix.
+**Scale/Scope**: 1 entity, 2 new endpoints, 1 changed rule, 1 schema migration.
 
 ## Constitution Check
 
@@ -47,7 +48,7 @@ with a join to `dsps` (`AsNoTracking`, split for the collection).
 |---|---|---|
 | I. Clean Architecture & CQRS | `DistributeTrackCommand`, `RecordDistributionAnswerCommand` (ICommand); rules in Domain (`Track.Distribute`, `Track.RecordAnswer`, `DistributionStatusRules`, `TrackStatusRules`); UoW commits | ✅ |
 | II. Thin HTTP edge | `TrackEndpoints` binds and maps Results only | ✅ |
-| III. Tests ship with features | domain tables, validators, handlers, API (auth, 400/404/409), integration on real Postgres incl. the migration | ✅ |
+| III. Tests ship with features | domain tables, validators, handlers, API (auth, 400/404/409), integration on real Postgres | ✅ |
 | IV. Security by default | `.RequireAdmin()` on both writes; DSP ids checked against the stored list; body cap unchanged | ✅ |
 | V. Spec-driven | spec → clarify → plan → tasks → analyze; contract exported; walkthrough + Memory + ai-log | ✅ |
 | VI. Simplicity & licenses | no packages; composite key instead of id + unique index; status as constrained text | ✅ |
@@ -83,7 +84,7 @@ src/TrackManagement.Application/Features/Tracks/
   Features/Dsps/Specifications/      # (existing list spec reused by the handler)
 src/TrackManagement.Infrastructure/Persistence/
   Configurations/TrackDistributionConfiguration.cs; TrackConfiguration (navigation, backing field)
-  Migrations/<ts>_AddTrackDistributions.cs   # table + checks + Q1 data fix
+  Migrations/<ts>_AddTrackDistributions.cs   # table + keys + checks (no data changes)
 src/TrackManagement.Api/
   Endpoints/TrackEndpoints.cs        # + distribute, + distributions/{dspId}
   ExceptionHandlers/UniqueConstraintExceptionHandler.cs  # + pk_track_distributions → errors.dspIds
@@ -113,14 +114,15 @@ tests/TrackManagement.UnitTests/
    least one platform. Use Distribute to send it." `AllowedNext(from, hasDistributions)` drops
    distributed accordingly. `Track.Distribute` adds deliveries first, then changes status through the
    same rule.
-5. **Distribute** (R5): body `{ "dspIds": [guid, …] }`; validator: required, 1–10 entries, 1–3 distinct
+5. **Distribute** (R5): body `{ "dspIds": [guid, …] }`; validator: required, not empty, at most 20 distinct ids (repeats count once)
    (`errors.dspIds`); handler loads all DSPs once, unknown ids → `Result.Invalid` on `dspIds`
    ("Unknown platform: {id}."). Draft → 409 "A draft track must be submitted before it can be
    distributed." Response 200 + `TrackDetailDto` (also for a no-op) (Q3).
 6. **Answers** (R6): `PATCH /api/tracks/{id}/distributions/{dspId}` body `{ "status": "live" |
    "rejected" }`; bound as a string (validator 400 names `status`, "pending" refused there).
    `DistributionStatusRules`: pending → live | rejected only (Q2); messages "The delivery is already
-   live.", "A live delivery is final.", "A rejected delivery can only be sent again with Distribute."
+   live.", "A live delivery is final.", "The delivery is already rejected.", "A rejected delivery must
+   be sent again with Distribute before the platform can answer."
    Unknown track / no delivery for that DSP → 404. Response 200 + `TrackDetailDto`.
 7. **Times** (R7, Q4): `submitted_at_utc` (set on create and on re-send), `answered_at_utc` (set on
    live/rejected, cleared on re-send); check `(status = 'pending') = (answered_at_utc IS NULL)`.
@@ -128,16 +130,13 @@ tests/TrackManagement.UnitTests/
    AllowedAnswers)` ordered by DSP name; `TrackDetailDto.CanDistribute` (submitted or distributed).
    The Phase 3 placeholder shape (`status` string, `updatedAtUtc`) is replaced – the web app is the
    only client and regenerates its types.
-9. **Q1 data fix** (R9): the migration, after creating the table, runs
-   `UPDATE tracks SET status = 'submitted', updated_at_utc = now() WHERE status = 'distributed'` (no
-   track can have deliveries yet). `Down` drops the table and does not restore the old status
-   (documented). Integration test applies the migrations step by step on real PostgreSQL.
+9. **Pre-Phase-4 data** (R9, Q1): no data migration; README and Memory.md tell developers to reset
+   local databases created before this phase (`docker compose down -v`); Phase 5 seeds consistent data.
 10. **Answers do not touch the track status** (spec): distributed stays final.
 
 ## Complexity Tracking
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |---|---|---|
-| Data-changing migration (Q1) | SC-001: no distributed track without deliveries | Leaving them needs a special case in the API and UI forever |
 | Track stamped on every delivery change | FR-009: concurrent changes to one track must not both win | A separate token per delivery misses races between distribute and status change |
 | Answer status bound as string | FR-007: "pending"/unknown must be 400 naming the field | Enum binding fails before validation with a generic body error |

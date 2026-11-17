@@ -10,26 +10,25 @@
 
 ## Clarifications
 
-### Session 2026-11-17 (recommended defaults; pending the user's OK at the analyze checkpoint)
+### Session 2026-11-17 (confirmed by the user at the analyze checkpoint; Q1 and the Q3 limit changed by the user)
 
 One batched round for both repos (web app questions in the web app's spec).
 
 - Q1: What happens to tracks that are already distributed without any delivery (possible since Phase 3,
-  when the status change alone could mark a track distributed)? → A (recommended): **A one-time data
-  migration moves them back to submitted.** Only local and test databases can contain them (nothing is
-  deployed yet); afterwards "distributed" always means "sent to at least one platform", and an admin
-  distributes them properly. The migration touches only distributed tracks without deliveries and is
-  logged in the AI log. *(Alternative: leave them distributed with no deliveries; the detail would then
-  need a special message.)*
-- Q2: Which platform answers can be simulated? → A (recommended): **pending → live and pending →
+  when the status change alone could mark a track distributed)? → A (**changed by the user**): **No data
+  migration.** No real data exists; local databases created before this phase are reset with
+  `docker compose down -v`, and Phase 5's seed creates consistent data. Documented in the README and
+  Memory.md. Neither the API nor the web app has a special case for "distributed without deliveries".
+- Q2: Which platform answers can be simulated? → A (recommended, confirmed): **pending → live and pending →
   rejected only.** Live is final for the simulation; a rejected delivery returns to pending only by
   distributing it again (as asked). Setting the current status again is a conflict.
   *(Alternative: also allow live → rejected, e.g. a takedown.)*
-- Q3: What does distribute answer, and when is it a no-op? → A (recommended): **Always the updated
-  track (200)**, also when every requested platform was already pending or live (nothing changes, no
-  error). A request names 1–3 platforms; repeated ids count once; an unknown platform is a validation
-  error naming the platform list.
-- Q4: Which times does a delivery show? → A (recommended): **When it was sent (submittedAt) and when the
+- Q3: What does distribute answer, and when is it a no-op? → A (recommended, confirmed; limit **changed
+  by the user**): **Always the updated track (200)**, also when every requested platform was already
+  pending or live (nothing changes, no error). A request names one or more distinct existing platforms,
+  up to a request limit of 20 distinct ids (the number of platforms is not hard-coded); repeated ids
+  count once; an empty list or an unknown id is a validation error on the platform list.
+- Q4: Which times does a delivery show? → A (recommended, confirmed): **When it was sent (submittedAt) and when the
   platform last answered** (time of the change to live or rejected; empty while pending). Both are
   needed to follow a delivery; the second costs one column.
 
@@ -49,13 +48,14 @@ no delivery records. From this phase on:
 - The allowed next statuses a track reports follow the same rule, so a submitted track lists only
   "draft"; distributing is a separate action.
 - Delivery answers (live, rejected) never change the track's status; distributed stays final.
-- Existing distributed tracks without deliveries: see Q1.
+- Existing distributed tracks without deliveries: none are kept – local databases from before this
+  phase are reset (Q1).
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Admin sends a track to platforms (Priority: P1)
 
-The signed-in admin sends a submitted track to one or more of the three platforms. Each platform gets a
+The signed-in admin sends a submitted track to one or more platforms. Each platform gets a
 pending delivery with the time it was sent, and the track becomes distributed.
 
 **Why this priority**: Distribution is the purpose of the product; without it no track reaches a
@@ -78,7 +78,7 @@ with two pending deliveries and status distributed.
    YouTube Music again, **Then** that delivery is pending again with a new sent time and no answer time.
 5. **Given** a draft track, **When** the admin distributes it, **Then** it is refused as a conflict
    explaining that the track must be submitted first, and nothing is stored.
-6. **Given** an empty platform list, more than three entries, or an unknown platform, **When**
+6. **Given** an empty platform list, more than 20 different platforms, or an unknown platform, **When**
    distributing, **Then** it is refused as a validation error naming the platforms field; repeated ids
    count once.
 7. **Given** two admins distribute the same track at the same moment, **When** both are saved, **Then**
@@ -127,9 +127,10 @@ reviewer) sees deliveries move.
    when it was answered; the track stays distributed.
 2. **Given** a pending delivery, **When** set rejected, **Then** it is rejected with an answer time; it
    can be sent again by distributing (User Story 1, scenario 4).
-3. **Given** a live delivery, **When** set rejected or live, **Then** it is refused as a conflict
-   (live is final / already live); **Given** a rejected delivery, **When** set live or rejected,
-   **Then** it is refused as a conflict explaining to distribute it again.
+3. **Given** a live delivery, **When** set live, **Then** it is refused as a conflict ("already live");
+   **When** set rejected, **Then** refused ("a live delivery is final"). **Given** a rejected delivery,
+   **When** set rejected, **Then** refused ("already rejected"); **When** set live, **Then** refused
+   explaining it must be sent again with Distribute first.
 4. **Given** "pending" or an unknown value, **When** requested, **Then** it is refused as a validation
    error naming the status field.
 5. **Given** a platform the track was never sent to, an unknown platform, or an unknown track, **When**
@@ -165,8 +166,8 @@ platform answered.
 - The track's last-change time is updated whenever its deliveries change (they are part of the track).
 - Platform answers never change the track's status.
 - The status change of a distributed track (to anything) stays refused as final.
-- Q1 migration: only tracks that are distributed and have no deliveries are moved back to submitted;
-  their last-change time is set to the migration time.
+- A local database created before this phase may hold distributed tracks without deliveries; it is
+  reset with `docker compose down -v` (Q1), not migrated.
 
 ## Requirements *(mandatory)*
 
@@ -177,8 +178,8 @@ platform answered.
   pending); a track MUST have at most one delivery per platform, also under concurrent requests.
 - **FR-002**: Only a signed-in admin MUST be able to distribute a track or record a platform's answer;
   reading stays open to everyone.
-- **FR-003**: Distributing MUST accept 1–3 platform ids (repeats count once; unknown ids refused as a
-  validation error) and be allowed only for submitted or distributed tracks; otherwise it is a conflict
+- **FR-003**: Distributing MUST accept one or more distinct existing platform ids, at most 20 distinct
+  ids per request (repeats count once; an empty list or an unknown id refused as a validation error) and be allowed only for submitted or distributed tracks; otherwise it is a conflict
   with an explanation.
 - **FR-004**: For each requested platform: no delivery → create pending (sent now); pending or live →
   unchanged; rejected → pending again with a new sent time and no answer time.
@@ -196,7 +197,7 @@ platform answered.
 - **FR-009**: Concurrent changes to one track (distribute, answers, status changes) MUST NOT both
   succeed; the later one is refused as a conflict asking to reload.
 - **FR-010**: The rules MUST live in the domain (track and delivery), not in endpoints.
-- **FR-011**: Existing distributed tracks without deliveries MUST be handled as decided in Q1.
+- **FR-011**: No data migration for pre-existing data (Q1); the reset is documented in the README.
 
 ### Key Entities
 
@@ -209,8 +210,7 @@ platform answered.
 
 ### Measurable Outcomes
 
-- **SC-001**: 0 tracks are distributed without at least one delivery after the migration and any API
-  use.
+- **SC-001**: 0 tracks become distributed without at least one delivery through any API use.
 - **SC-002**: 0 duplicate deliveries per track and platform after concurrent distribute requests.
 - **SC-003**: 100% of the delivery answer rules (2 allowed, all others refused) behave as specified.
 - **SC-004**: An admin distributes a track to three platforms and records two answers in under 1 minute.
@@ -221,4 +221,4 @@ platform answered.
 - Real platform integrations are out of scope; answers are simulated by the admin endpoint.
 - Deliveries are not deleted (no "unpublish").
 - Seed data with varied deliveries comes with Phase 5 (interview answer 8).
-- The platform list stays the three platforms of Phase 2.
+- The platforms are the stored platform list (three today); nothing in the rules depends on that number.

@@ -27,14 +27,17 @@
 - Rationale: keeps PATCH as the assignment requires while closing the Phase 3 gap the user found.
 
 ## R5 – Distribute input
-- Decision: `{ "dspIds": [...] }`, 1–10 entries, 1–3 distinct; unknown → 400 `errors.dspIds`; existence
-  checked in the handler against all DSPs (one query of three rows).
-- Rationale: three platforms exist; a bound on the raw list keeps bodies small; checking in the handler
+- Decision: `{ "dspIds": [...] }`, not empty, at most 20 distinct ids (repeats count once); empty or
+  unknown → 400 `errors.dspIds`; existence checked in the handler against all stored DSPs (one small query).
+- Rationale: the number of platforms is data, not a rule (user); 20 is a request limit, not a business
+  rule; the 32 KB body cap bounds the raw list; checking in the handler
   avoids loading DSPs twice (validator + handler).
 
 ## R6 – Answers
 - Decision: `PATCH /api/tracks/{id}/distributions/{dspId}` with `status` live|rejected; pending → live |
-  rejected only (Q2). No delivery for the DSP → 404 "This track has not been sent to this platform."
+  rejected only (Q2). Messages: live→live "The delivery is already live."; live→rejected "A live
+  delivery is final."; rejected→rejected "The delivery is already rejected."; rejected→live "A rejected
+  delivery must be sent again with Distribute before the platform can answer." No delivery for the DSP → 404 "This track has not been sent to this platform."
 - Rationale: route shape from interview answer 8; "pending" is reached only by distributing.
 
 ## R7 – Times
@@ -47,9 +50,8 @@
   allowedAnswers)`, ordered by DSP name; `TrackDetailDto.canDistribute`.
 - Rationale: the web app shows only what the API allows (as with `allowedNextStatuses`).
 
-## R9 – Existing data (Q1)
-- Decision: the migration moves every distributed track back to submitted (no deliveries can exist
-  when the table is created) and stamps `updated_at_utc`; `Down` does not restore it.
-- Rationale: nothing is deployed; local/test data only. Keeps SC-001 true without special cases.
-- Check: integration test migrates to `AddTracks`, inserts a distributed track, migrates to the latest,
-  expects submitted.
+## R9 – Existing data (Q1, changed by the user)
+- Decision: no data migration. Local databases created before this phase may contain distributed
+  tracks without deliveries; developers reset them with `docker compose down -v` (README, Memory.md);
+  Phase 5's seed creates consistent data.
+- Rationale: no real data exists; a data-changing migration would add risk and code for nothing.

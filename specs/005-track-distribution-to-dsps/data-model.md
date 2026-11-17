@@ -18,12 +18,12 @@ Key: `pk_track_distributions (track_id, dsp_id)`.
 |---|---|---|---|
 | (none) | Distribute | – | – |
 | pending | Distribute: no-op | answer ✅ | answer ✅ |
-| live | Distribute: no-op | 409 already live | 409 live is final |
-| rejected | Distribute: re-send (new submitted time, answer cleared) | 409 send again first | 409 already rejected |
+| live | Distribute: no-op | 409 "already live" | 409 "a live delivery is final" |
+| rejected | Distribute: re-send (new submitted time, answer cleared) | 409 "must be sent again with Distribute" | 409 "already rejected" |
 
 ## Track (changes)
 
-- `Distributions` (0..3, one per DSP).
+- `Distributions` (at most one per DSP).
 - Status rule: submitted → distributed only with ≥ 1 delivery; `Distribute` on submitted does it.
 - Any delivery change sets `UpdatedAtUtc` (and thus the `xmin` check).
 
@@ -31,5 +31,6 @@ Key: `pk_track_distributions (track_id, dsp_id)`.
 
 - `TrackDistributionDto`: `dspId`, `dspName`, `status` (`pending`|`live`|`rejected`), `submittedAtUtc`,
   `answeredAtUtc` (null while pending), `allowedAnswers` (`live`|`rejected` list).
+- No data migration for pre-existing rows (Q1): reset local databases with `docker compose down -v`.
 - `TrackDetailDto`: Phase 3 fields + `canDistribute` (bool); `distributions` ordered by `dspName`.
 - `DistributeTrackRequest`: `dspIds` (array of uuid). `RecordDistributionAnswerRequest`: `status` (`live`|`rejected`).
