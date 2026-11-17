@@ -79,7 +79,7 @@ Entries are appended per phase and never rewritten.
   30 s refresh), app shell, not-found route, design tokens (frontend-design skill: indigo ink,
   saffron accent, Readex Pro for Latin + Arabic, level-meter motif), nginx/Docker/compose, CI with a
   bundle budget, 19 tests.
-- Developer wrote/changed: _Developer notes: (to be filled in by Yousef)_
+- Developer wrote/changed: _Developer notes (Yousef):_ see the Phase 0 developer notes above (they cover both repos).
 
 **(b) Security**
 | Issue | Where | Introduced/found by | Handling | Status |
@@ -123,7 +123,7 @@ Entries are appended per phase and never rewritten.
   load balancer in Phase 6); required the Admin-policy proof endpoint to live only in the test
   project; fixed the JWT rules (issuer, audience, lifetime, signature, HS256 only, skew ≤ 30 s);
   asked for CI actions on Node 24 and a clean container log (no `libgssapi_krb5` noise).
-- Developer wrote/changed: _Developer notes (Yousef):_ <!-- to be filled in by the developer -->
+- Developer wrote/changed: _Developer notes (Yousef):_ I reviewed the Phase 1 plan before approving it and asked for four changes: IdentityServiceTests in Phase 1 instead of Phase 4, trusted proxy ranges moved into configuration so the AWS load balancer works later, the test-only Admin endpoint kept out of production builds, and stricter JWT validation (HS256 only, 30 s clock skew). I questioned why the admin password lives in .env and not in appsettings.json, and confirmed it is there so no secret is committed. I reviewed both PRs and their CI checks on GitHub and merged them with merge commits.
 
 ### (b) Security
 | Issue | Where | Introduced/found by | Handling | Status |
@@ -170,7 +170,7 @@ Entries are appended per phase and never rewritten.
   screenshots.
 - Developer decided: approved F1/F2 clarifications (session in localStorage with the documented
   trade-off; sign-out from a protected page goes to the status page).
-- Developer wrote/changed: _Developer notes (Yousef):_ <!-- to be filled in by the developer -->
+- Developer wrote/changed: _Developer notes (Yousef):_ see the Phase 1 developer notes above (they cover both repos).
 
 **(b) Security**
 | Issue | Where | Introduced/found by | Handling | Status |
