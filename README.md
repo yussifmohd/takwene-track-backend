@@ -24,7 +24,7 @@ built-in OpenAPI + Scalar (Development only) · Serilog · xUnit v3 + NSubstitut
 ## Run with Docker (recommended)
 
 ```bash
-cp .env.example .env        # then set POSTGRES_PASSWORD and JWT__SIGNINGKEY (≥ 32 chars)
+cp .env.example .env        # then set POSTGRES_PASSWORD, JWT__SIGNINGKEY (≥ 32 chars) and ADMIN__PASSWORD
 docker compose up --build
 ```
 
@@ -46,11 +46,13 @@ docker compose up --build
 ```bash
 dotnet user-secrets set "ConnectionStrings:Default" "Host=localhost;Port=5432;Database=trackmgmt;Username=...;Password=..." --project src/TrackManagement.Api
 dotnet user-secrets set "Jwt:SigningKey" "<at least 32 characters>" --project src/TrackManagement.Api
+dotnet user-secrets set "Admin:Email" "admin@takwene.local" --project src/TrackManagement.Api
+dotnet user-secrets set "Admin:Password" "<12+ chars, upper, lower, digit, symbol>" --project src/TrackManagement.Api
 dotnet run --project src/TrackManagement.Api          # http://localhost:8080, Development
 ```
 
-The API refuses to start when the connection string is missing or the JWT signing key is shorter
-than 32 characters.
+The API refuses to start when the connection string is missing, the JWT signing key is shorter
+than 32 characters, or (with migrate-on-startup on) the admin email/password is missing or weak.
 
 ## Configuration
 
@@ -62,8 +64,52 @@ than 32 characters.
 | `Jwt__ExpirationMinutes` | 60 | 5–1440 |
 | `Database__MigrateOnStartup` | `false` (`true` in Development and compose) | |
 | `Cors__AllowedOrigins__0..n` | none (dev: `localhost:5173`, `localhost:8081`) | explicit allow-list |
+| `Admin__Email` / `Admin__Password` | – | the one admin account; created on startup if missing, never changed afterwards |
+| `ReverseProxy__KnownNetworks__0..n` | none (compose: `172.16.0.0/12`) | CIDR ranges of proxies whose `X-Forwarded-For` is trusted |
+| `RateLimiting__Login__PermitLimit` / `__WindowSeconds` | 10 / 60 | sign-in attempts per client IP per window |
 
 No secrets are committed: `appsettings*.json` contain none and `.env` is gitignored.
+
+## Authentication
+
+Reads (`GET`) are public. Every endpoint that changes data requires the **Admin** role. There is no
+registration: one admin account is provisioned from `Admin__Email` / `Admin__Password` on startup.
+
+```bash
+curl -s -X POST localhost:8080/api/auth/login -H "Content-Type: application/json"   -d '{"email":"admin@takwene.local","password":"<ADMIN__PASSWORD from .env>"}'
+# → { "accessToken": "...", "tokenType": "Bearer", "expiresAt": "...", "user": { "email", "roles", "expiresAt" } }
+
+curl -s localhost:8080/api/auth/me -H "Authorization: Bearer <accessToken>"
+```
+
+In Scalar (`/scalar`, Development) call **Login**, then paste the token into the Bearer auth field.
+
+- **Tokens**: HS256 JWT, 60 minutes, no refresh token (sign in again). The API checks issuer,
+  audience, lifetime (30 s clock skew) and signature, and accepts only HS256 (`alg: none` and other
+  algorithms are rejected).
+- **Failures** all return the same `401` "Invalid email or password." (unknown email, wrong
+  password, locked account). Unknown emails still run a password hash check, so response times match.
+- **Lockout**: 5 wrong passwords lock the account for 15 minutes.
+- **Rate limit**: 10 sign-in attempts per minute per client IP → `429` ProblemDetails with `Retry-After`.
+- **Errors**: `401` (missing/invalid/expired token) and `403` (signed in without the Admin role) are
+  ProblemDetails.
+- **Changing the admin password**: the seeder never modifies an existing account. Delete the user
+  row (or the database volume in development) and restart with the new value.
+
+### Trusted proxies (real client IP)
+
+The rate limit is per client IP, so the API must know the real IP behind a proxy, without letting
+anyone fake it. `X-Forwarded-For` is honoured **only** when the request comes from a network listed in
+`ReverseProxy:KnownNetworks` (CIDR, configuration only, nothing hard-coded), and only the last hop is used
+(`ForwardLimit = 1`).
+
+| Environment | Value |
+|---|---|
+| `dotnet run` | empty (no proxy; loopback only) |
+| Docker compose | `REVERSE_PROXY_KNOWN_NETWORK=172.16.0.0/12` (Docker's private range, where the web nginx runs) |
+| AWS (Phase 6) | the VPC CIDR of the load balancer, e.g. `ReverseProxy__KnownNetworks__0=10.0.0.0/16` |
+
+An invalid CIDR stops startup with a message naming the setting.
 
 ## Migrations
 

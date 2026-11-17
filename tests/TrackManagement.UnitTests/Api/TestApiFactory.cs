@@ -1,30 +1,58 @@
+using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog.Core;
+using TrackManagement.Api.Security;
 using TrackManagement.Infrastructure.Persistence;
+using TrackManagement.UnitTests.TestSupport;
 
 namespace TrackManagement.UnitTests.Api;
 
 /// <summary>
 /// In-process API host for HTTP-level tests: EF InMemory instead of Postgres, test configuration,
-/// and optional extra services/routes. Environment defaults to "Testing" (no API docs).
+/// the admin seeded on startup, and TEST-ONLY endpoints (defined here, never in production code).
+/// Environment defaults to "Testing" (no API docs).
 /// </summary>
-public sealed class TestApiFactory(string environment = "Testing", Action<IServiceCollection>? configureServices = null)
+public sealed class TestApiFactory(
+    string environment = "Testing",
+    Action<IServiceCollection>? configureServices = null,
+    IReadOnlyDictionary<string, string?>? settings = null)
     : WebApplicationFactory<Program>
 {
     public const string ThrowingPath = "/test/throw";
+    public const string AdminOnlyPath = "/test/admin-only";
+    public const string PublicPath = "/test/public";
     public const string SecretExceptionMessage = "super-secret-internal-detail";
+
+    /// <summary>Sets the connection's remote IP (TestServer has none) to exercise forwarded headers and rate limits.</summary>
+    public const string ClientIpHeader = "X-Test-Client-IP";
+
+    public const string AdminEmail = "admin@takwene.test";
+    public const string AdminPassword = "Adm1n!Passw0rd#2026";
+
+    public CollectingLogSink Logs { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);
         builder.UseSetting("ConnectionStrings:Default", "Host=unused-in-tests");
-        builder.UseSetting("Jwt:SigningKey", new string('k', 48));
-        builder.UseSetting("Database:MigrateOnStartup", "false");
+        builder.UseSetting("Jwt:SigningKey", TestTokens.SigningKey);
+        builder.UseSetting("Jwt:Issuer", TestTokens.Issuer);
+        builder.UseSetting("Jwt:Audience", TestTokens.Audience);
+        builder.UseSetting("Database:MigrateOnStartup", "true");
+        builder.UseSetting("Admin:Email", AdminEmail);
+        builder.UseSetting("Admin:Password", AdminPassword);
+        builder.UseSetting("RateLimiting:Login:PermitLimit", "1000");
+        foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
+        {
+            builder.UseSetting(key, value);
+        }
 
         builder.ConfigureTestServices(services =>
         {
@@ -44,19 +72,42 @@ public sealed class TestApiFactory(string environment = "Testing", Action<IServi
             var dbName = $"api-tests-{Guid.NewGuid()}";
             services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(dbName));
 
-            // Test-only route that throws, appended after the app pipeline so the global handler wraps it.
-            services.AddTransient<IStartupFilter, ThrowingRouteStartupFilter>();
+            services.AddSingleton<ILogEventSink>(Logs);
+            services.AddTransient<IStartupFilter, TestPipelineStartupFilter>();
 
             configureServices?.Invoke(services);
         });
     }
 
-    private sealed class ThrowingRouteStartupFilter : IStartupFilter
+    private sealed class TestPipelineStartupFilter : IStartupFilter
     {
         public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
         {
+            app.Use((context, nextMiddleware) =>
+            {
+                if (IPAddress.TryParse(context.Request.Headers[ClientIpHeader], out var ip))
+                {
+                    context.Connection.RemoteIpAddress = ip;
+                }
+
+                return nextMiddleware(context);
+            });
+
             next(app);
+
+            // Test-only routes, reached when the app pipeline has no matching endpoint. Excluded from the
+            // OpenAPI description so they never appear in the exported contract.
             app.Map(ThrowingPath, branch => branch.Run(_ => throw new InvalidOperationException(SecretExceptionMessage)));
+            app.Map("/test", branch =>
+            {
+                branch.UseRouting();
+                branch.UseAuthorization();
+                branch.UseEndpoints(endpoints =>
+                {
+                    endpoints.MapPost("/admin-only", () => Results.Ok(new { ok = true })).RequireAdmin().ExcludeFromDescription();
+                    endpoints.MapGet("/public", () => Results.Ok(new { ok = true })).ExcludeFromDescription();
+                });
+            });
         };
     }
 }

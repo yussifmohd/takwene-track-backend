@@ -23,6 +23,20 @@ public sealed class OpenApiExposureTests
     }
 
     [Fact]
+    public async Task Development_DocumentContainsOnlyProductionRoutes()
+    {
+        // Guards the contract: test-only endpoints from TestApiFactory must never be described.
+        await using var factory = new TestApiFactory("Development");
+        using var client = factory.CreateClient();
+
+        using var json = System.Text.Json.JsonDocument.Parse(
+            await client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+
+        json.RootElement.GetProperty("paths").EnumerateObject().Select(p => p.Name)
+            .ShouldAllBe(path => path.StartsWith("/api/", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Development_ServesScalarReference()
     {
         // Arrange

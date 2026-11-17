@@ -34,10 +34,15 @@ try
 
     await app.InitializeDatabaseAsync();
 
+    // First, so everything after sees the real client IP (only from trusted proxies).
+    app.UseForwardedHeaders();
     app.UseExceptionHandler();
     app.UseStatusCodePages();
     app.UseSerilogRequestLogging();
     app.UseCors(ApiServiceCollectionExtensions.CorsPolicyName);
+    app.UseRateLimiter();
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     if (app.Environment.IsDevelopment())
     {

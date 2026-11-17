@@ -2,6 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TrackManagement.Api.ExceptionHandlers;
 using TrackManagement.Api.OpenApi;
+using TrackManagement.Api.Security;
+using TrackManagement.Application.Common.Security;
 
 namespace TrackManagement.Api;
 
@@ -29,7 +31,15 @@ public static class ApiServiceCollectionExtensions
             });
         services.AddExceptionHandler<GlobalExceptionHandler>();
 
-        services.AddOpenApi("v1", options => options.AddDocumentTransformer<BearerSecuritySchemeTransformer>());
+        services.AddOpenApi("v1", options => options
+            .AddDocumentTransformer<BearerSecuritySchemeTransformer>()
+            .AddOperationTransformer<AuthorizeOperationTransformer>());
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUser, HttpCurrentUser>();
+        services.AddAuthPolicies();
+        services.AddLoginRateLimiting(configuration);
+        services.AddTrustedForwardedHeaders(configuration);
 
         var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
         services.AddCors(options => options.AddPolicy(CorsPolicyName, policy => policy

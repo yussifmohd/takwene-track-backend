@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.DependencyInjection;
+using TrackManagement.Infrastructure.Identity;
 
 namespace TrackManagement.Infrastructure.Persistence;
 
@@ -14,8 +17,15 @@ internal sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<A
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Default")
             ?? "Host=localhost;Port=5432;Database=trackmgmt;Username=trackmgmt";
 
+        // Identity reads its table layout version from IdentityOptions in the application services;
+        // give design time the same version as runtime so migrations match the runtime model.
+        var identityServices = new ServiceCollection()
+            .Configure<IdentityOptions>(o => o.Stores.SchemaVersion = IdentitySetup.SchemaVersion)
+            .BuildServiceProvider();
+
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(connectionString)
+            .UseApplicationServiceProvider(identityServices)
+            .UseNpgsql(NpgsqlConnectionStringDefaults.Apply(connectionString))
             .UseSnakeCaseNamingConvention()
             .Options;
 
