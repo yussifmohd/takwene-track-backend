@@ -10,9 +10,9 @@
 
 ## Clarifications
 
-### Session 2026-11-17 (recommended defaults, pending the user's confirmation at the analyze checkpoint)
+### Session 2026-11-17 (recommended defaults; confirmed by the user at the analyze checkpoint, with the email change below)
 
-- Q: Is an artist's email required? → A: No. Name and country are required; email is optional, and when given it must be a valid address that no other artist uses (compared ignoring letter case and surrounding spaces).
+- Q: Is an artist's email required? → A: **Yes** (changed by the user at the analyze checkpoint, to match the assignment's Artist entity). Name, country and email are required; the email must be a valid address that no other artist uses (compared ignoring letter case and surrounding spaces).
 - Q: Who may see an artist's email? → A: Only a signed-in admin. The public artist list omits email addresses (artists are real people; reads are public).
 - Q: What does a duplicate email return? → A: A "conflict" error that names the email field, so the form can show the message next to it. The same applies when two creations race.
 - Q: In which order are artists listed, and what happens with bad paging values? → A: By name, ignoring letter case, then oldest first for equal names. A page number below 1 or a page size outside 1–50 is rejected with a validation error; a page past the end returns an empty page with the correct totals.
@@ -21,7 +21,7 @@
 
 ### User Story 1 - Admin adds an artist (Priority: P1)
 
-The signed-in admin adds an artist with a name, a country and optionally a contact email, so the
+The signed-in admin adds an artist with a name, a country and a contact email, so the
 artist can later be credited on tracks.
 
 **Why this priority**: Tracks (Phase 3) belong to artists; without artists no track can be created.
@@ -126,7 +126,7 @@ stable identifier; restart and get the same identifiers.
 - Country with spaces or lower case (" eg ") → accepted as "EG". Codes that are reserved, user-assigned
   or not country codes ("UK", "EU", "XK") → refused.
 - Two artists may share a name (different people); only email must be unique.
-- Email given as an empty string → treated as "no email".
+- Email missing, empty or only spaces → refused as required.
 - Concurrent creation of two artists with the same email → exactly one succeeds; the other gets the
   conflict.
 - Unknown fields in the request body are ignored; wrong types (e.g. a number for the name) →
@@ -145,13 +145,13 @@ stable identifier; restart and get the same identifiers.
   any script.
 - **FR-003**: An artist MUST have a country: an officially assigned ISO 3166-1 alpha-2 code,
   accepted in any letter case with outer spaces removed, stored and returned in upper case.
-- **FR-004**: An artist MAY have an email: at most 254 characters, a valid address, unique across
-  artists ignoring letter case and outer spaces; an empty value means "no email".
+- **FR-004**: An artist MUST have an email: at most 254 characters, a valid address, unique across
+  artists ignoring letter case and outer spaces.
 - **FR-005**: A duplicate email MUST be refused as a conflict naming the email field, including when
   two requests race; nothing is stored.
 - **FR-006**: Each invalid field MUST produce its own message in the standard error format; no
   data is stored when any field is invalid.
-- **FR-007**: A created artist MUST be returned with identifier, name, country, email (if any) and
+- **FR-007**: A created artist MUST be returned with identifier, name, country, email and
   creation time, with a reference to where it can be read.
 - **FR-008**: Anyone MUST be able to list artists page by page: page (default 1, at least 1) and
   page size (default 20, 1–50); the response includes the items, page, page size, total count and
@@ -171,7 +171,7 @@ stable identifier; restart and get the same identifiers.
 
 ### Key Entities
 
-- **Artist**: a performer credited on tracks. Name (any script), country (ISO alpha-2), optional
+- **Artist**: a performer credited on tracks. Name (any script), country (ISO alpha-2), required
   unique contact email, creation and last-update times.
 - **Distribution platform (DSP)**: a music service tracks are delivered to. Name and a stable
   identifier; fixed set of three in this release.

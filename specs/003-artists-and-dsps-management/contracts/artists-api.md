@@ -11,7 +11,7 @@ Request:
 ```
 - `201` + `Location: /api/artists/{id}`:
   `{ "id": "…", "name": "عمرو دياب", "countryCode": "EG", "email": "booking@example.com", "createdAtUtc": "2026-11-17T12:00:00Z" }`
-- `400` ValidationProblem: `errors.name | errors.countryCode | errors.email` (camelCase keys).
+- `400` ValidationProblem: `errors.name | errors.countryCode | errors.email` (camelCase keys; all three required).
 - `409` ValidationProblem (title "Conflict"): `errors.email = ["An artist with this email already exists."]`.
 - `401` (no/invalid token), `403` (not Admin), `413` (body > 32 KB) — ProblemDetails.
 

@@ -1,8 +1,8 @@
 # Research: Artists & Distribution Platforms (API service)
 
 ## R1 – Case-insensitive unique email
-- **Decision**: store `email` as entered (trimmed) and `normalized_email = upper(trim(email))` with a
-  unique index `ix_artists_normalized_email` (NULLs allowed many times in PostgreSQL).
+- **Decision**: store `email` as entered (trimmed, required) and `normalized_email = upper(trim(email))`
+  with a unique index `ix_artists_normalized_email`.
 - **Why**: same pattern as Identity's `NormalizedEmail`; works identically on EF InMemory and Postgres;
   no extension needed.
 - **Rejected**: `citext` (extension + InMemory mismatch); expression index on `lower(email)` (EF
@@ -65,7 +65,10 @@
   `string.Equals(..., Ordinal)` and code points), name at 200 code points, unique index violation →
   `DbUpdateException 23505`, `lower(name)` ordering, encoding check passes on UTF8 and fails on a
   `SQL_ASCII` database created in the same container.
-- CI: `ubuntu-latest` has Docker; no workflow change beyond the longer run.
+- Same test project, trait `Category=Integration`. Without Docker:
+  `dotnet test --solution TrackManagement.slnx -- --filter-not-trait "Category=Integration"` (xUnit v3 on
+  Microsoft.Testing.Platform). Integration only: `-- --filter-trait "Category=Integration"`.
+- CI (`ubuntu-latest`, Docker available) runs the whole suite (both), unfiltered.
 
 ## R9 – DSP seed
 - `HasData` with fixed GUIDs in `Dsp.Seed`: Spotify `0d1f6b9e-5c2a-4c7e-9f4b-2b8a7c1e0001`, Apple Music

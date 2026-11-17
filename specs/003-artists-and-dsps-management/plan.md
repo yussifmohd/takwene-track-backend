@@ -125,9 +125,9 @@ folders per aggregate.
 7. **UTF-8**: `DatabaseEncodingCheck` runs in `DatabaseInitializer` after migrations (Npgsql only) and
    throws "Database encoding is X; UTF8 is required" → startup fails. Compose already sets UTF8; the
    Phase 6 RDS script must too (R7).
-8. **Real-Postgres tests** with Testcontainers 4.16.0 using the compose image; marked
-   `[Trait("Category","Integration")]`; CI (ubuntu, Docker available) runs them; locally they need
-   Docker Desktop (R8).
+8. **Real-Postgres tests** with Testcontainers 4.16.0 using the compose image, in the same test
+   project, marked `[Trait("Category","Integration")]`. Unit tests run without Docker by filtering
+   the trait out; CI runs both (R8).
 9. **DSPs as migration data** (`HasData`) with fixed GUIDs and unique `name`: present after every
    migrate, never duplicated, same ids everywhere (R9).
 10. **Audit timestamps**: `AuditableEntityInterceptor` (scoped, `TimeProvider`) sets

@@ -7,13 +7,12 @@
 | Id | `id` | uuid PK | `Guid.CreateVersion7()` in code (`ValueGeneratedNever`) |
 | Name | `name` | varchar(200) not null | trimmed; 1–200 code points; any script; stored unchanged otherwise |
 | CountryCode | `country_code` | char(2) not null | assigned ISO 3166-1 alpha-2, upper case |
-| Email | `email` | varchar(254) null | trimmed; valid format; empty → null |
-| NormalizedEmail | `normalized_email` | varchar(254) null, unique `ix_artists_normalized_email` | `upper(trim(email))`; not exposed |
+| Email | `email` | varchar(254) not null | trimmed; required; valid format |
+| NormalizedEmail | `normalized_email` | varchar(254) not null, unique `ix_artists_normalized_email` | `upper(trim(email))`; not exposed |
 | CreatedAtUtc | `created_at_utc` | timestamptz not null | set by `AuditableEntityInterceptor` |
 | UpdatedAtUtc | `updated_at_utc` | timestamptz null | set on modify (no edit endpoint yet) |
 
-Domain: `Artist.Create(string name, string countryCode, string? email)` normalises (trim, upper,
-empty → null) and throws `ArgumentException` on values the validator should already have rejected
+Domain: `Artist.Create(string name, string countryCode, string email)` normalises (trim, upper) and throws `ArgumentException` on values the validator should already have rejected
 (defence in depth, not user-facing).
 
 ## Dsp (`dsps`)

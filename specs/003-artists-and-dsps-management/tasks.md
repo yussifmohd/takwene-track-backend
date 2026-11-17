@@ -24,7 +24,7 @@ description: "Task list for Phase 2 – Artists & Distribution Platforms (API se
 
 - [ ] T003 [P] Tests `Domain/CountryCodesTests.cs`: count 249, SHA-256 of the comma-joined sorted list (constant shared with the frontend), EG/SA/AE/PS/SS accepted, `eg`/` eg ` normalised, UK/EU/XK/ZZ/empty refused
 - [ ] T004 [P] `Domain/Countries/CountryCodes.cs` (`FrozenSet`, `IsAssigned`, `Normalize`); re-verify the 249 codes against the ISO 3166-1 list (R5)
-- [ ] T005 [P] Tests `Domain/ArtistTests.cs` (trim, upper country, empty email → null, normalised email, guard on invalid input) and `Domain/DspTests.cs` (three seeds, fixed ids, unique names)
+- [ ] T005 [P] Tests `Domain/ArtistTests.cs` (trim, upper country, normalised email, guard on missing/invalid input) and `Domain/DspTests.cs` (three seeds, fixed ids, unique names)
 - [ ] T006 `Domain/Artists/Artist.cs`, `Domain/Dsps/Dsp.cs` (`Dsp.Seed` fixed GUIDs, R9); `Artist : IAuditableEntity`
 - [ ] T007 [P] Tests `Infrastructure/AuditableEntityInterceptorTests.cs` (Added → CreatedAtUtc from fake `TimeProvider`; Modified → UpdatedAtUtc)
 - [ ] T008 `Infrastructure/Persistence/AuditableEntityInterceptor.cs` + DI registration (R10)
@@ -86,11 +86,11 @@ description: "Task list for Phase 2 – Artists & Distribution Platforms (API se
 ## Phase 7: Polish & cross-cutting
 
 - [ ] T033 Export contract: `scripts/export-contract.ps1` → `specs/003-artists-and-dsps-management/contracts/openapi.json`; `OpenApiContractTests` cover the new paths; check 401/403/409/413 documented
-- [ ] T034 CI: confirm integration tests run on `ubuntu-latest` (Docker) and show in the TRX report
-- [ ] T035 README: Artists & DSPs endpoints, UTF-8 requirement, running integration tests (Docker needed)
+- [ ] T034 CI: the whole suite (unit + `Category=Integration`) runs on `ubuntu-latest` (Docker) and shows in the TRX report; document the trait filter for running unit tests without Docker
+- [ ] T035 README: Artists & DSPs endpoints, the public list hides emails (admins only), UTF-8 requirement, running tests with/without Docker (trait filter)
 - [ ] T036 Quickstart run on compose (`down -v`, `up --build`): steps 1–9 incl. restart keeps 3 DSPs; insert 1,000 artists and time page 1 and the last page (< 1 s, SC-003); record results in ai-log
 - [ ] T037 Add this phase's section to `docs/walkthrough.md` and update Memory.md (master + repo) (REQUIRED by the constitution's Definition of Done)
-- [ ] T038 `docs/ai-log.md` Phase 2 (backend): AI usage, security notes (email PII, 500→400 fix, body cap), mistakes; developer-notes placeholder for Yousef
+- [ ] T038 `docs/ai-log.md` Phase 2 (backend): AI usage, security notes (email PII, body cap), mistakes (malformed JSON → 500 in Development; audit timestamps never filled) with exact cause and fix; developer notes (provided by Yousef)
 
 ## Dependencies
 
