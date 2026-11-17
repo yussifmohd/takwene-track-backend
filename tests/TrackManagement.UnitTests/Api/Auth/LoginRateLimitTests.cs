@@ -41,6 +41,7 @@ public sealed class LoginRateLimitTests
         response.Headers.RetryAfter!.Delta!.Value.ShouldBeInRange(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(60));
         using var json = await AuthApi.ReadJsonAsync(response);
         json.RootElement.GetProperty("status").GetInt32().ShouldBe(429);
+        json.RootElement.GetProperty("type").GetString().ShouldBe("https://tools.ietf.org/html/rfc6585#section-4");
     }
 
     [Fact]

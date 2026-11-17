@@ -64,6 +64,7 @@ public static class LoginRateLimiting
                     ProblemDetails = new ProblemDetails
                     {
                         Status = StatusCodes.Status429TooManyRequests,
+                        Type = "https://tools.ietf.org/html/rfc6585#section-4",
                         Title = "Too many requests",
                         Detail = retryAfter is null
                             ? "Too many sign-in attempts. Try again later."
