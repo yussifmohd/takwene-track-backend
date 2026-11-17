@@ -1,15 +1,13 @@
 <!--
 Sync Impact Report
-- Version change: template → 1.0.0 (initial ratification)
-- Principles defined: I. Clean Architecture & CQRS; II. Result-Driven, Thin HTTP Edge;
-  III. Tests Ship With Features; IV. Security by Default; V. Spec-Driven, Traceable Delivery;
-  VI. Simplicity & License Hygiene
-- Added sections: Technology Stack & Constraints; Development Workflow & Quality Gates; Governance
-- Removed sections: none
-- Templates: ✅ .specify/templates/tasks-template.md (tests marked REQUIRED per Principle III)
-             ✅ .specify/templates/plan-template.md (Constitution Check reads gates from this file; no edit needed)
-             ✅ .specify/templates/spec-template.md (no stack in specs; no edit needed)
+- Version change: 1.0.0 → 1.1.0 (MINOR: Definition of Done materially expanded)
+- Modified section: Development Workflow & Quality Gates – every phase PR must update
+  docs/walkthrough.md and Memory.md; the Definition of Done is not met without both (user, Phase 2)
+- Principles: unchanged
+- Templates: ✅ .specify/templates/tasks-template.md (Polish phase lists walkthrough + Memory tasks)
+             ✅ plan-template.md, spec-template.md (no edit needed)
 - Deferred TODOs: none
+- Previous: 1.0.0 initial ratification (Phase 0)
 -->
 
 # Takwene Track Management API Constitution
@@ -108,7 +106,11 @@ reference project while fixing its lack of a Unit of Work.
 
 Definition of Done per phase: builds clean; migrations included when the model changes; tests
 written and passing; CI green; `docker compose up` still works; spec, plan and tasks committed;
-Memory.md and `docs/ai-log.md` updated; PR opened with summary, test evidence and checklist.
+Memory.md, `docs/ai-log.md` and `docs/walkthrough.md` updated; PR opened with summary, test
+evidence and checklist.
+Every phase PR MUST update `docs/walkthrough.md` (a section for that phase: what was built, key
+files, one end-to-end request flow, decisions, how to run/test, limitations; describing only what
+is in the code) and Memory.md; without both, the Definition of Done is not met.
 The backend PR of a phase is merged before the frontend PR.
 
 ## Governance
@@ -119,4 +121,4 @@ or materially expanded; PATCH: wording) and an updated Sync Impact Report. Every
 Constitution Check and every PR review verify compliance; any violation must be justified in the
 plan's Complexity Tracking table. Runtime guidance: `CLAUDE.md` and `Memory.md`.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-17 | **Last Amended**: 2026-11-17
+**Version**: 1.1.0 | **Ratified**: 2026-11-17 | **Last Amended**: 2026-11-17

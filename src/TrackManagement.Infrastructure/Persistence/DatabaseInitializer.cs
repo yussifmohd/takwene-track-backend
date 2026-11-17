@@ -27,6 +27,7 @@ public sealed partial class DatabaseInitializer(
         if (dbContext.Database.IsRelational())
         {
             await dbContext.Database.MigrateAsync(cancellationToken);
+            await DatabaseEncodingCheck.EnsureUtf8Async(dbContext, cancellationToken);
         }
         else
         {

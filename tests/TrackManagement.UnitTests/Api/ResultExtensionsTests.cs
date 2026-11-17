@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TrackManagement.Api;
 using TrackManagement.Api.Extensions;
+using TrackManagement.Application.Common.Validation;
 
 namespace TrackManagement.UnitTests.Api;
 
@@ -40,6 +41,46 @@ public sealed class ResultExtensionsTests
         headers.Location.ToString().ShouldBe($"/api/things/{id}");
         using var json = JsonDocument.Parse(body);
         json.RootElement.GetProperty("id").GetGuid().ShouldBe(id);
+    }
+
+    [Fact]
+    public async Task CreatedAtHttpResult_Returns201WithLocationAndTheResourceAsBody()
+    {
+        var (status, body, headers) = await ExecuteAsync(Result.Created(new SampleDto("Amr Diab")).ToCreatedAtHttpResult(x => $"/api/things/{x.Name}"));
+
+        status.ShouldBe(201);
+        headers.Location.ToString().ShouldBe("/api/things/Amr Diab");
+        using var json = JsonDocument.Parse(body);
+        json.RootElement.GetProperty("name").GetString().ShouldBe("Amr Diab");
+    }
+
+    [Fact]
+    public async Task InvalidWithOnlyConflictErrors_Returns409ThatStillNamesTheField()
+    {
+        var result = Result<Guid>.Invalid(new ValidationError("Email", "Taken.", ValidationErrorCodes.Conflict, ValidationSeverity.Error));
+
+        var (status, body, headers) = await ExecuteAsync(result.ToHttpResult());
+
+        status.ShouldBe(409);
+        headers.ContentType!.ToString().ShouldStartWith("application/problem+json");
+        using var json = JsonDocument.Parse(body);
+        json.RootElement.GetProperty("title").GetString().ShouldBe("Conflict");
+        json.RootElement.GetProperty("errors").GetProperty("email")[0].GetString().ShouldBe("Taken.");
+    }
+
+    [Fact]
+    public async Task InvalidWithConflictAndOtherErrors_Returns400WithAll()
+    {
+        var result = Result<Guid>.Invalid(
+            new ValidationError("Email", "Taken.", ValidationErrorCodes.Conflict, ValidationSeverity.Error),
+            new ValidationError("Name", "Name is required."));
+
+        var (status, body, _) = await ExecuteAsync(result.ToHttpResult());
+
+        status.ShouldBe(400);
+        using var json = JsonDocument.Parse(body);
+        json.RootElement.GetProperty("errors").GetProperty("email")[0].GetString().ShouldBe("Taken.");
+        json.RootElement.GetProperty("errors").GetProperty("name")[0].GetString().ShouldBe("Name is required.");
     }
 
     [Fact]

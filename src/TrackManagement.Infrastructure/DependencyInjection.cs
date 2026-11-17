@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using TrackManagement.Application.Common.Persistence;
@@ -34,13 +35,16 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<AuditableEntityInterceptor>();
         services.AddDbContext<AppDbContext>((sp, options) =>
         {
             var connectionString = NpgsqlConnectionStringDefaults.Apply(
                 sp.GetRequiredService<IOptions<ConnectionStringOptions>>().Value.Default);
             options
                 .UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 5))
-                .UseSnakeCaseNamingConvention();
+                .UseSnakeCaseNamingConvention()
+                .AddInterceptors(sp.GetRequiredService<AuditableEntityInterceptor>());
         });
 
         services.AddOptions<AdminOptions>().Bind(configuration.GetSection(AdminOptions.SectionName));
