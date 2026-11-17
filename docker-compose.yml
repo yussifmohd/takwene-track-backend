@@ -1,0 +1,58 @@
+# Backend stack: PostgreSQL + API.
+# Start this first, then the frontend stack (it joins the trackmgmt-net network).
+name: trackmgmt-backend
+
+services:
+  db:
+    image: postgres:17.11-alpine3.24
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-trackmgmt}
+      POSTGRES_USER: ${POSTGRES_USER:-trackmgmt}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      # UTF-8 so Arabic and other Unicode text round-trips unchanged (FR-013).
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    ports:
+      # Bound to localhost only: not reachable from other machines.
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - trackmgmt-net
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trackmgmt-api:local
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__Default: "Host=db;Port=5432;Database=${POSTGRES_DB:-trackmgmt};Username=${POSTGRES_USER:-trackmgmt};Password=${POSTGRES_PASSWORD}"
+      Database__MigrateOnStartup: "true"
+      Jwt__SigningKey: ${JWT__SIGNINGKEY:?Set JWT__SIGNINGKEY in .env (at least 32 characters)}
+      Jwt__Issuer: ${JWT__ISSUER:-trackmgmt-api}
+      Jwt__Audience: ${JWT__AUDIENCE:-trackmgmt-web}
+      Jwt__ExpirationMinutes: ${JWT__EXPIRATIONMINUTES:-60}
+      Cors__AllowedOrigins__0: http://localhost:8081
+      Cors__AllowedOrigins__1: http://localhost:5173
+    ports:
+      - "8080:8080"
+    networks:
+      - trackmgmt-net
+
+volumes:
+  db-data:
+
+networks:
+  trackmgmt-net:
+    # Explicit name so the frontend compose can join it as an external network.
+    name: trackmgmt-net
