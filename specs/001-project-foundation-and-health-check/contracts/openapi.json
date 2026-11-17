@@ -1,0 +1,93 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Takwene Track Management API",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [ "Health" ],
+        "summary": "Get API and database health",
+        "operationId": "GetHealth",
+        "responses": {
+          "200": {
+            "description": "The API and its dependencies are healthy.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthReportDto" }
+              }
+            }
+          },
+          "503": {
+            "description": "At least one dependency is unhealthy.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthReportDto" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthStatus": {
+        "type": "string",
+        "enum": [ "healthy", "degraded", "unhealthy" ]
+      },
+      "HealthCheckEntryDto": {
+        "type": "object",
+        "required": [ "name", "status", "durationMs" ],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/HealthStatus" },
+          "durationMs": { "type": "number", "format": "double" }
+        }
+      },
+      "HealthReportDto": {
+        "type": "object",
+        "required": [ "status", "checkedAt", "checks" ],
+        "properties": {
+          "status": { "$ref": "#/components/schemas/HealthStatus" },
+          "checkedAt": { "type": "string", "format": "date-time" },
+          "checks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/HealthCheckEntryDto" }
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": { "type": [ "null", "string" ] },
+          "title": { "type": [ "null", "string" ] },
+          "status": { "type": [ "null", "integer" ], "format": "int32" },
+          "detail": { "type": [ "null", "string" ] },
+          "instance": { "type": [ "null", "string" ] },
+          "traceId": { "type": [ "null", "string" ] }
+        }
+      },
+      "HttpValidationProblemDetails": {
+        "allOf": [ { "$ref": "#/components/schemas/ProblemDetails" } ],
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "object",
+            "additionalProperties": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT access token from POST /api/auth/login (available from Phase 1)."
+      }
+    }
+  },
+  "tags": [ { "name": "Health" } ]
+}
