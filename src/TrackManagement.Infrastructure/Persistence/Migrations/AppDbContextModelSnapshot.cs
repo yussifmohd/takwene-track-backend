@@ -188,6 +188,94 @@ namespace TrackManagement.Infrastructure.Persistence.Migrations
                     b.ToTable("user_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("TrackManagement.Domain.Artists.Artist", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character(2)")
+                        .HasColumnName("country_code")
+                        .IsFixedLength();
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)")
+                        .HasColumnName("email");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("NormalizedEmail")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)")
+                        .HasColumnName("normalized_email");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id")
+                        .HasName("pk_artists");
+
+                    b.HasIndex("NormalizedEmail")
+                        .IsUnique()
+                        .HasDatabaseName("ix_artists_normalized_email");
+
+                    b.ToTable("artists", (string)null);
+                });
+
+            modelBuilder.Entity("TrackManagement.Domain.Dsps.Dsp", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_dsps");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_dsps_name");
+
+                    b.ToTable("dsps", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("0d1f6b9e-5c2a-4c7e-9f4b-2b8a7c1e0001"),
+                            Name = "Spotify"
+                        },
+                        new
+                        {
+                            Id = new Guid("0d1f6b9e-5c2a-4c7e-9f4b-2b8a7c1e0002"),
+                            Name = "Apple Music"
+                        },
+                        new
+                        {
+                            Id = new Guid("0d1f6b9e-5c2a-4c7e-9f4b-2b8a7c1e0003"),
+                            Name = "YouTube Music"
+                        });
+                });
+
             modelBuilder.Entity("TrackManagement.Infrastructure.Identity.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")
