@@ -299,3 +299,37 @@ duplicate ` Q0@EXAMPLE.com ` → 409 `errors.email`; invalid fields → 400 nami
 email; anonymous create → 401; malformed JSON and `page=abc` → 400; `pageSize=51` → 400; 40 KB body
 → 413; anonymous list without `email`, admin list with. 1,000 artists: pages 1, 25 and 50 in 8, 25 and
 9 ms (target < 1 s).
+
+### Frontend (same phase)
+
+**(a) Generated vs written**
+- AI generated: spec, plan, research, tasks (T001–T023) and, after the API was merged, the required-email
+  update; the country list module (API's 249 codes, shared SHA-256, browser names), artists API module,
+  paging hook, list/skeleton/pagination components, Artists page, role-aware `RequireAuth`, Add artist
+  page with country select and zod schema, sign-out cache drop, README/walkthrough sections, all new
+  tests (132 total, was 95), and a throwaway real-browser script (not committed).
+- Developer decided: artist email required (form field required as in the API); accepted the add-artist
+  page and the country dropdown defaults.
+- Developer wrote/changed: _Developer notes (Yousef):_ "I tested the artists list, paging, the add-artist form (validation and duplicate email) and the sign-out redirect in the browser, and I tested the Phase 2 API in Scalar before merging both PRs."
+
+**(b) Security**
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| Artist emails shown to visitors | artists list | AI design | API omits them; column rendered only for admins (also for a non-admin token that receives them); tested | done |
+| Admin emails left in the query cache after sign-out | TanStack Query cache | AI design (R4) | `SessionWatcher` removes `["artists"]` on every sign-out; test fails without it | done |
+| Add artist reachable by non-admins | `/artists/new` | AI design | `RequireAuth` + `handle.requiresRole`; the API still enforces Admin (403) | done |
+| Script injection via artist names | list, toast | Phase 0 rule | names only as text through `UserText` (no HTML rendering; lint rule) | done |
+
+**(c) Mistakes & fixes**
+- **"Required" message lost to a later check.** In zod 4 the refinements after `min(1)` still run, so an
+  empty email showed "Enter a valid email address." instead of "Enter the artist's email." Caught by
+  the schema test before commit; fix: `min(1, { error, abort: true })`.
+- **A test assumed the wrong thing about sign-out.** My first cache test expected no `["artists"]`
+  queries after sign-out, but the still-mounted page re-creates its query and refetches *without* a
+  token (public data, no emails). The property that matters is "no email survives sign-out"; the test
+  now checks that and returning to the list as a visitor, and it fails without the fix.
+- **Country label for PS.** The browser's built-in name is engine-dependent ("Palestinian Authority" in
+  Edge, "Palestinian Territories" in Node). Found in the real-browser screenshots; fixed with one
+  override ("Palestine", following ISO 3166-1 "Palestine, State of") and a test.
+- **Walkthrough overclaim corrected:** the walkthrough section for frontend PR #3 now carries the same
+  correction as the ai-log entry above (real edge cases, not shown to be the reported cause).
