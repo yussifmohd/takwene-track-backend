@@ -310,3 +310,48 @@ Quickstart results are in `docs/ai-log.md` (Phase 4).
 - Platform answers are simulated by the admin; no platform is called.
 - Deliveries cannot be withdrawn and a live delivery is final.
 - Seed data with varied deliveries is not there yet (local data is created through the API or web app).
+
+## Phase 5 – Sample data, security hardening, docs (`006-seed-data-security-hardening-and-docs`)
+
+### What was built
+A sample catalogue added on the first start against an empty database (17 artists – 9 from the region,
+8 international legends – and 32 tracks with deliveries in every state), clearly marked as sample data.
+Security hardening from a review of both repos: every change route proven to require the admin, rate
+limits for all requests and for changes, security headers, stricter CORS, a patched runtime image.
+Documentation: `DECISIONS.md`, `docs/security-review.md`, `docs/study-guide.md`, finished README.
+
+### Important files
+| Path | What it does |
+|---|---|
+| `src/TrackManagement.Infrastructure/Persistence/Seeding/SampleCatalog.cs` | The sample artists and tracks, built only through `Artist.Create`, `Track.Create`, `ChangeStatus`, `Distribute`, `RecordAnswer` (a refused step throws, so the data always obeys the rules). Invented ISRCs `XX-SMP-26-9NNNN`, emails `@example.com`, fixed times from 2026-09-01. |
+| `src/TrackManagement.Infrastructure/Persistence/Seeding/SampleCatalogSeeder.cs` | `ISeeder` (Order 20, after the admin): inside the retry strategy, one transaction, `pg_advisory_xact_lock`, then "any artist or track? skip : add all and save once". |
+| `src/TrackManagement.Api/Security/ApiRateLimiting.cs` | Three validated fixed-window settings (`RateLimiting:Login`, `Api`, `Writes`); global per-IP limiter (health exempt), `login` per IP, `writes` per user id; `RequireAdminWrite()`; 429 ProblemDetails with `Retry-After`. |
+| `src/TrackManagement.Api/Security/SecurityHeaders.cs` | Headers set when the response starts, so errors get them too; no CSP on the Development API reference. |
+| `src/TrackManagement.Api/Security/WebAppCors.cs` | `Cors:AllowedOrigins` validated on start (exact http(s) origins); policy GET/POST/PATCH, Authorization + Content-Type. |
+| `tests/.../Api/Security/` | Route table requires Admin, over-posting, rate limits, headers, CORS, leaks in responses and logs. |
+| `tests/.../Integration/SampleCatalogSeederTests.cs` | Real PostgreSQL, a fresh database per test: seeded once, skipped with data, admin untouched, two seeders in parallel. |
+| `Dockerfile` | Runtime image `aspnet:10.0.15-alpine3.24` (documented exception, see the security review). |
+
+### Request flow: startup with an empty database
+1. `DatabaseInitializer` (only with `Database:MigrateOnStartup`) applies migrations and checks UTF-8.
+2. Seeders run by `Order`: `AdminSeeder` (10) creates the admin if missing; `SampleCatalogSeeder` (20) runs.
+3. The seeder opens a transaction and takes the advisory lock; a second instance waits here.
+4. It counts artists and tracks. Any row → logs "skipped" and commits nothing. Otherwise it builds the
+   catalogue through the domain, adds it, saves once and commits; the waiting instance then sees data and skips.
+
+### Key decisions and why
+- **Only into an empty catalogue**: sample data never mixes with real data or overwrites it.
+- **Built through the entities**: the sample cannot contain a state the API would refuse.
+- **Real names, invented records**: evaluators see a realistic catalogue; nothing invented looks like a real release.
+- **Writes limited per admin, not per IP**: a stolen token cannot bulk-change the catalogue from many addresses.
+- **Security exception for the runtime image**: known HIGH CVEs in what ships outweigh the version-age rule.
+
+### How to run and test
+`docker compose down -v && docker compose up --build -d` (the log says the sample was added).
+`dotnet test --solution TrackManagement.slnx` (523 tests); security tests only: `-- --filter-class "*Security*"`.
+Quickstart results are in `docs/ai-log.md` (Phase 5).
+
+### Known limitations
+- No HTTPS/HSTS (no domain); sign-out does not revoke a token before it expires.
+- Rate limits are per instance (in memory); several instances would each allow the full limit.
+- Image findings change as CVEs are published: re-scan with Trivy on every rebuild.

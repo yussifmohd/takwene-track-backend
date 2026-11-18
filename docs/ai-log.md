@@ -591,3 +591,93 @@ pending, badge Distributed; Mark live / Mark rejected with toasts naming the pla
 Apple Music "Send again", Spotify disabled "Live"; send again → pending; last platform → Distribute
 disabled with "Sent to every platform". No horizontal overflow; no app console errors (only an Edge
 built-in extension's). Bundle 202 kB gzip.
+
+---
+
+## Phase 5 – Sample data, security hardening, docs (006-seed-data-security-hardening-and-docs / 006-seed-data-security-hardening-and-docs) – 2026-11-18
+
+### (a) Generated vs written
+- AI generated (Spec Kit): both specs (one batched clarify round, Q1–Q5), plans, research, data models,
+  quickstarts, tasks (backend T001–T024, frontend T001–T010), analyze report (A1–A6) and its fixes;
+  web searches to verify every real artist–song pairing, with sources in `data-model.md`.
+- AI generated (code): `SampleCatalog` (17 artists, 32 tracks, built only through the domain) and
+  `SampleCatalogSeeder` (empty catalogue only, one transaction, advisory lock); `ApiRateLimiting` (global
+  per IP, writes per admin, validated settings), `RequireAdminWrite()`, `SecurityHeaders`, `WebAppCors`
+  (validated origins, GET/POST/PATCH only); the security tests (route table requires Admin, over-posting,
+  rate limits, headers, CORS, error and log leaks); the runtime image change; README, `DECISIONS.md`,
+  `docs/security-review.md`, `docs/study-guide.md`; all new tests (523 total, was 471).
+- Developer decided: Q1–Q5 and A1–A6 with changes – verify every real pairing (and the "Pop" question
+  answered: not added); list the 21 npm development findings as known/accepted with the reason; self-host
+  the font with its OFL license and prove no Google requests in a real browser; the DECISIONS question 3
+  wording; record the sign-in timing numbers. Both image fixes approved as documented exceptions with
+  conditions (rebuild without cache, re-scan, non-root and full-stack checks, dates and CVE ids recorded).
+- Developer notes (Yousef):
+  - "I asked for international legend artists (The Beatles, Led Zeppelin, Michael Jackson and others) in the seed data next to the MENA artists, and for the sample data to be clearly labeled as sample data."
+  - "I reviewed the Phase 5 plan before approving it, including the security review decisions (rate limits, removing the unused shadcn CLI, self-hosting the font), and asked Claude to verify every real artist and song pairing instead of keeping unverified ones."
+  - "I asked that the README describe the finished product rather than the phases DECISIONS.md."
+  - "-all the recommendations you usually give and techinical and business decisions should also be included in DECISIONS.md and this is from the start of the convo till now"
+
+### (b) Security
+Full table with evidence: [security-review.md](security-review.md). Changed in this phase:
+
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| Admin requirement proven only on a test endpoint; a new change route could ship open | all change routes | AI (review) | `RequireAdminWrite()` on every change route; test over the real route table (fails when one is removed – checked) | fixed |
+| No limit beyond sign-in | all routes | AI (review) | 300/min per IP (health exempt), 60 changes/min per admin; 429 + `Retry-After` | fixed |
+| No security headers on API responses | API | AI (review) | nosniff, DENY, no-referrer, deny-all CSP, `no-store` on `/api` | fixed |
+| CORS origins unchecked, PUT/DELETE allowed | API | AI (review) | origins validated on start; GET/POST/PATCH only | fixed |
+| Runtime image 10.0.14: 3 HIGH + 3 MEDIUM CVEs | Dockerfile | Trivy | `aspnet:10.0.15-alpine3.24` – documented exception to the two-week rule (developer, 2026-11-18); Trivy 6 → 0 | exception |
+| Seeding racing between two instances | seeder | AI design | advisory lock in the transaction; the parallel test fails without it (duplicate key – checked) | done |
+| Sample data mistaken for real releases | seed | developer request | `XX-SMP-26-9NNNN` ISRCs, `@example.com` emails, README states what is real and what is invented | done |
+| Sign-in timing | login | measured (A6) | medians 63.6 vs 70.1 ms (n = 100 each): close, not identical – recorded as such | measured |
+
+### (c) Mistakes & fixes
+1. **Unverified sample pairings in the first draft.** I drafted the catalogue from memory: Hussain Al
+   Jassmi – "Ahebak Moot" (not found; the real song is "Ahebak"), an Egyptian song labelled Khaleeji,
+   Saint Levant's Raï-inspired "Exile" as Hip-Hop, and Beatles/Michael Jackson/Queen songs whose genre
+   labels are disputed. The developer asked for every pairing to be verified; each one now has a source,
+   and the changes are listed in `data-model.md`.
+2. **README overclaim since Phase 1.** It said failed sign-ins had "matching response times". Phase 1
+   measured 138 vs 161 ms; Phase 5 measured medians 63.6 vs 70.1 ms. The README now gives the numbers.
+3. **False test failures from a stale build.** After restoring a temporary probe edit I ran the tests with
+   `--no-build`, so old binaries ran and 6 tests failed (including the contract test). Rebuilt: 523 pass.
+   Lesson: never `--no-build` after touching source.
+4. **Wrong test assumptions, caught by the tests themselves:** a DELETE preflight still gets
+   `Access-Control-Allow-Methods` (ASP.NET lists the allowed ones), so the test now checks DELETE is not in
+   the list; `/health` sets its own `Cache-Control`, so the `no-store` assertion applies to `/api` only; a
+   host that fails option validation surfaces only as `ObjectDisposedException` through
+   WebApplicationFactory, so those tests validate options through the service collection instead.
+5. **Files created outside the scratchpad.** Two commands wrote to the system temp folder
+   (`%TEMP%\seeder.bak`, a backup copy of the seeder, and `%TEMP%\x`, a command's output) instead of the
+   session scratchpad. Nothing was written into the repositories; the developer was told, and the files
+   were left for the developer to delete (rule: delete only inside the scratchpad).
+6. **Version age checked only for direct dependencies.** The web app's lock file holds transitive versions
+   that were younger than two weeks at install time (e.g. minimatch 11.0.9, found in this review); the
+   rule was applied to direct dependencies only. Recorded as accepted in the security review (W12).
+7. **The task names promised two separate test files** (`ErrorLeakTests`, `LogLeakTests`); the checks were
+   written as one `LeakTests.cs`, and the 404/413/malformed/forced-exception cases already existed in
+   `ProblemDetailsTests`, `RequestBodyLimitTests` and `MalformedRequestTests`, so they were not duplicated.
+
+### Quickstart results (compose project `trackmgmt-sample`, fresh volume)
+1. First start: "Sample catalogue added: 17 artists and 32 tracks (all sample data)"; 8 draft, 9 submitted,
+   15 distributed; all 8 genres; ISRCs `XX-SMP-26-90001…`. The first-start EF `ERR` for
+   `__EFMigrationsHistory` is the known benign one.
+2. Restart → "Sample catalogue skipped: the catalogue already has data"; counts unchanged.
+3. Every distributed track has ≥ 1 delivery; pending, live and rejected each appear on all three platforms;
+   artist emails absent for visitors.
+4. Anonymous POST/PATCH on all 5 change routes → 401 ×5; with the admin token → 400, 400, 404, 404, 404
+   (invalid bodies / unknown track, so nothing was created).
+5. `GET /api/tracks` and `/health`: nosniff, DENY, no-referrer, CSP `default-src 'none'; frame-ancestors 'none'`;
+   `/api` has `Cache-Control: no-store`.
+6. 301 GETs in a fresh minute → 300 × 200, the 301st 429 with `Retry-After: 60`; `/health` still 200.
+   61 changes → 60 × 404, the 61st 429. Sign-in: 10 × 401, then 429 with `Retry-After: 60`.
+7. Preflight from `http://localhost:8081` → allowed, methods GET, POST, PATCH; from `https://evil.example`
+   → no CORS headers.
+8. Sign-in timing (limits raised for the run, restored afterwards): unknown email median 63.6 ms
+   (p90 78.3), wrong password median 70.1 ms (p90 87.2), n = 100 each.
+9. Scans: no vulnerable NuGet packages; Trivy API image 6 → 0, web image 61 → 0; gitleaks backend 1
+   (test fixture key), frontend 0; local secrets in no revision of either repo.
+10. Clean clone of the branch into a new scratch folder: locked restore, Release build with 0 warnings,
+    523 / 523 tests (incl. PostgreSQL).
+11. Link check (scratch script) over every Markdown file in both repos: 0 broken relative links or anchors.
+    The frontend's absolute links to `DECISIONS.md` on `main` resolve once this branch is merged.
