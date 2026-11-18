@@ -30,19 +30,19 @@ git clone https://github.com/yussifmohd/takwene-track-backend.git
 git clone https://github.com/yussifmohd/takwene-track-frontend.git
 ```
 
-**2. Create the API's settings file** and fill in the two empty values:
+**2. Create the settings file (`.env`)** with one command. It fills in new random secrets, picks a free
+database port and prints the admin email and password:
 
 ```bash
 cd takwene-track-backend
-cp .env.example .env
+powershell -ExecutionPolicy Bypass -File scripts/create-env.ps1   # Windows
+bash scripts/create-env.sh                                       # macOS / Linux
 ```
 
-| In `.env` | What to put |
-|---|---|
-| `JWT__SIGNINGKEY` | any random text of 32+ characters, e.g. the output of `openssl rand -base64 48` |
-| `ADMIN__PASSWORD` | the admin's password: 12+ characters with upper case, lower case, a digit and a symbol |
-
-Everything else already has working local values (admin email `admin@takwene.local`).
+Keep the printed password: you sign in with it in step 5 (it is also in `.env` as `ADMIN__PASSWORD`).
+Were you given a ready `.env` file instead? Put it in the `takwene-track-backend` folder and skip the script.
+To fill it in by hand, copy `.env.example` to `.env` and set `JWT__SIGNINGKEY` (32+ random characters) and
+`ADMIN__PASSWORD` (12+ characters with upper case, lower case, a digit and a symbol).
 
 **3. Start the database and the API:**
 
@@ -60,7 +60,7 @@ cd ../takwene-track-frontend
 docker compose up -d --build
 ```
 
-**5. Open http://localhost:8081** and sign in with `admin@takwene.local` and your `ADMIN__PASSWORD`.
+**5. Open http://localhost:8081** and sign in with `admin@takwene.local` and the password from step 2.
 
 | URL | What |
 |---|---|
@@ -70,7 +70,10 @@ docker compose up -d --build
 
 - Windows: if `git clone` says "Filename too long", clone into a shorter folder (e.g. `C:\src`) or run
   `git config --global core.longpaths true` first.
-- Port 5432 already used by a local PostgreSQL? Set `POSTGRES_HOST_PORT=5433` in `.env` and run step 3 again.
+- Database port already in use? Set `POSTGRES_HOST_PORT` in `.env` to a free port and run step 3 again. The port
+  is only for database tools such as pgAdmin; the API reaches the database inside Docker.
+- Sign-in refused after creating a new `.env`? The admin account is created only on the first start, so
+  the old password still applies. Run `docker compose down -v` (this deletes the local data) and step 3 again.
 - Stop: `docker compose down` in each folder. Start over with an empty database: `docker compose down -v` in this folder.
 - If a migration fails, the API stops with an error instead of running on a broken database.
 
@@ -307,7 +310,7 @@ src/
   TrackManagement.Api/             Minimal API endpoint groups, ProblemDetails/exception handlers, OpenAPI, health
 tests/TrackManagement.UnitTests/   unit + in-memory API tests (folders mirror src); Integration/ = PostgreSQL via Testcontainers
 specs/                             spec, plan, tasks and API contract per feature
-scripts/                           contract export
+scripts/                           contract export, .env creation
 docs/                              walkthrough, AI log, security review, study guide
 DECISIONS.md                       decisions and AI usage for both repos
 ```
