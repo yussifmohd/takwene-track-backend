@@ -68,6 +68,8 @@ docker compose up -d --build
 | http://localhost:8080/scalar | API reference, where you can try every endpoint |
 | http://localhost:8080/health | health check, including the database |
 
+- Windows: if `git clone` says "Filename too long", clone into a shorter folder (e.g. `C:\src`) or run
+  `git config --global core.longpaths true` first.
 - Port 5432 already used by a local PostgreSQL? Set `POSTGRES_HOST_PORT=5433` in `.env` and run step 3 again.
 - Stop: `docker compose down` in each folder. Start over with an empty database: `docker compose down -v` in this folder.
 - If a migration fails, the API stops with an error instead of running on a broken database.
