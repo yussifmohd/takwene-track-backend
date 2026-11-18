@@ -35,7 +35,9 @@
 SDK 10.0.403 (rollForward latestFeature) · ASP.NET/EF Core 10.0.14 · Npgsql EF 10.0.3 · EFCore.NamingConventions 10.0.1 ·
 MediatR 12.5.0 · FluentValidation 12.2.0 · Ardalis.Result 10.1.0 / Specification 9.3.1 / GuardClauses 5.0.0 ·
 Scalar.AspNetCore 2.18.7 · Serilog.AspNetCore 10.0.0 · xunit.v3 4.0.2 · NSubstitute 6.2.0 · Shouldly 4.3.0 ·
-Identity.EntityFrameworkCore 10.0.14 · Testcontainers.PostgreSql 4.16.0 (MIT; transitives Testcontainers 4.16.0, Docker.DotNet.Enhanced 4.3.3, BouncyCastle 2.7.0, SSH.NET 2026.0.0, SharpZipLib 1.4.2 – all MIT) · coverlet.MTP 10.1.0 · Microsoft.Testing.Extensions.TrxReport 2.5.1 · images sdk 10.0.403-alpine3.24, aspnet 10.0.14-alpine3.24, postgres 17.11-alpine3.24.
+Identity.EntityFrameworkCore 10.0.14 · Testcontainers.PostgreSql 4.16.0 (MIT; transitives Testcontainers 4.16.0, Docker.DotNet.Enhanced 4.3.3, BouncyCastle 2.7.0, SSH.NET 2026.0.0, SharpZipLib 1.4.2 – all MIT) · coverlet.MTP 10.1.0 · Microsoft.Testing.Extensions.TrxReport 2.5.1 · images sdk 10.0.403-alpine3.24, **aspnet 10.0.15-alpine3.24**, postgres 17.11-alpine3.24.
+- **Exception to the two-week rule (security patch, user decision 2026-11-18)**: runtime image aspnet 10.0.14 → 10.0.15-alpine3.24 (published 2026-11-10, tag pin; the project pins no digests). Trivy 0.76.1 before: 6 findings – CVE-2026-114146 (HIGH, elevation of privilege), CVE-2026-114147 and CVE-2026-114149 (HIGH, DoS), CVE-2026-109476 (MEDIUM, information disclosure), CVE-2026-109475 (MEDIUM, .NET DoS), zlib CVE-2026-4738 (MEDIUM). After (rebuilt `--no-cache`): 0. SDK image and NuGet packages unchanged (not shipped / not flagged). **To do if time before submission: bump SDK 10.0.404 and NuGet 10.0.15 once they pass two weeks on 2026-11-24.**
+- Scan tools (run from images, not dependencies): Trivy `aquasec/trivy:0.76.1` (Apache-2.0, pushed 2026-10-21), gitleaks `zricethezav/gitleaks:v8.30.1` (MIT, 2026-03-21).
 
 ## State
 - Phase 0 (`001-project-foundation-and-health-check`): implemented; health on `/health` + `/api/health`, empty InitialCreate migration, Docker, CI.

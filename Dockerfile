@@ -16,7 +16,11 @@ COPY src/ src/
 RUN dotnet publish src/TrackManagement.Api/TrackManagement.Api.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
 
 # ---- runtime ----
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.14-alpine3.24 AS runtime
+# 10.0.15 is a deliberate exception to the "two weeks old" version rule (security patch, decided
+# 2026-11-18): 10.0.14 carries CVE-2026-114146/-114147/-114149/-109476/-109475 and zlib CVE-2026-4738.
+# See docs/security-review.md. The SDK image and NuGet packages stay on 10.0.403 / 10.0.14 until
+# 10.0.15 passes two weeks (2026-11-24).
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.15-alpine3.24 AS runtime
 # ICU for culture-aware string handling (Arabic text); alpine images ship without it.
 RUN apk add --no-cache icu-libs
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
