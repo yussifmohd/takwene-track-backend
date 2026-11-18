@@ -681,3 +681,51 @@ Full table with evidence: [security-review.md](security-review.md). Changed in t
     523 / 523 tests (incl. PostgreSQL).
 11. Link check (scratch script) over every Markdown file in both repos: 0 broken relative links or anchors.
     The frontend's absolute links to `DECISIONS.md` on `main` resolve once this branch is merged.
+
+### Frontend (same phase)
+
+**(a) Generated vs written**
+- AI generated: self-hosted Readex Pro (four woff2 subsets downloaded from the google/fonts repository with
+  their OFL license, `@font-face` rules, preload), `nginx/security-headers.conf` and the template change,
+  `src/thirdPartyHosts.test.ts`, the shadcn CLI removal and the minimatch override, the runtime-stage
+  package upgrade, README and walkthrough sections, and a throwaway real-browser script (not committed).
+- Developer decided: self-host the font with its license and prove no Google requests in a real browser;
+  remove the shadcn CLI; list the remaining development findings as accepted; the image exception with
+  conditions (remove curl, upgrade, back to uid 101, re-scan on every rebuild, propose a CI scan without
+  adding a new action unchecked).
+- Developer notes (Yousef): see the Phase 5 developer notes above (they cover both repos).
+
+**(b) Security**
+| Issue | Where | Introduced/found by | Handling | Status |
+|---|---|---|---|---|
+| Scripts and styles served with only `nosniff` (the `/assets/` location's own `add_header` dropped the server-level headers) | nginx, since Phase 0 | introduced by AI config, found by the AI in the review | one snippet included in every location that serves files; curl evidence on `/`, an asset, a font, `/api/dsps` | fixed |
+| Visitor addresses sent to Google; CSP allowing two Google hosts | font, since Phase 0 | AI design, changed in the review | self-hosted font; real browser: 48 requests, all to the app's origin; test guards it | fixed |
+| 21 development-tool audit findings | `package-lock.json` | `npm audit` | 7 cleared by removing the shadcn CLI, 2 by the minimatch override; 12 (picomatch, no fix) accepted; `--omit=dev` 0 | 9 fixed, 12 accepted |
+| 61 OS package CVEs in the base image (1 CRITICAL, 12 HIGH) | web image | Trivy | curl removed, packages upgraded at build time; Trivy 0; non-root, healthcheck, fallback, proxy and headers re-checked | exception |
+| `/api/` responses carried nginx copies of headers on top of the API's | nginx | AI (review) | `/api/` passes the API's headers only | fixed |
+
+**(c) Mistakes & fixes**
+1. **Wrong count in the plan.** The plan said the shadcn CLI caused 9 audit findings. Measured: removing it
+   cleared 7, and the minimatch override 2 more. Corrected in the plan before the PR.
+2. **A commit split went wrong.** I tried to commit the package removal and the override separately with
+   `git stash`; restoring the stash brought back only the lock file. I restored both files from the stash,
+   checked the diff, and made one combined commit (05f36c9) instead of two.
+3. **Header check against the wrong file.** My first curl check asked for an asset name from my local build,
+   which the container (built separately) does not have, so it got the SPA fallback. Fixed by taking the
+   asset name from the `index.html` the container serves.
+4. **E2E script built an invalid ISRC.** In two re-runs I appended the port number to the run suffix, so the
+   ISRC had 8 digits and the Add track form refused it (correctly, with the format message – screenshot
+   checked). Re-run with a 5-digit suffix: all steps passed. The two refused runs left two extra artists in
+   the local sample database only.
+5. **The nginx header gap existed since Phase 0** and no test or browser run caught it, because checks looked
+   at `/` only. The new test reads the config and the curl evidence covers an asset.
+
+**Real-browser results** (compose: API with the sample data, web app on 8081; Edge over DevTools, desktop
+1280 px and 400 px, light and dark): catalogue with the sample, status + genre filter in the address, artist
+filter via the picker, Stairway to Heaven as a visitor (Spotify live, Apple Music pending after a re-send, no
+admin buttons), sign in, artist emails as admin, add an Arabic-named artist and a track for it, submit,
+distribute to 3 platforms, mark live and rejected, "Send again" in the dialog and back to pending, sign out →
+`/login`. 14/14 checks in each of the 4 variants; no horizontal overflow; requests only to `localhost:8081`
+(and inline `data:` icons); console errors only from Edge's built-in extension, none from the app. Not
+covered: Chrome/Brave, opening native select lists. Lint, typecheck, 223 tests, build (initial JS 195.4 kB
+gzip) pass, also from a clean clone.
