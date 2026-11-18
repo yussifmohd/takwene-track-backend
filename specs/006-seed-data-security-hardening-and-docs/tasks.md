@@ -50,7 +50,7 @@ description: "Task list for Phase 5 – Sample Data, Security Hardening and Docu
 
 - [x] T022 [US5] Quickstart 1–9 on the compose stack; record results in the ai-log
 - [x] T023 [US5] Clean clone in a new scratch folder → build + all tests; `.env.example` complete; dead code/files check (unused files, debug code)
-- [ ] T024 Polish: walkthrough Phase 5 section, Memory.md, ai-log Phase 5 (a)/(b)/(c) with the developer's Phase 5 notes, tick tasks; PR; CI green
+- [x] T024 Polish: walkthrough Phase 5 section, Memory.md, ai-log Phase 5 (a)/(b)/(c) with the developer's Phase 5 notes, tick tasks; PR; CI green
 
 ## Dependencies
 
