@@ -8,6 +8,8 @@ answers (live or rejected) are simulated by the admin, because no real platform 
 - Web app: [takwene-track-frontend](https://github.com/yussifmohd/takwene-track-frontend)
 - How the code works, feature by feature: [docs/walkthrough.md](docs/walkthrough.md)
 - Design decisions and AI usage: [DECISIONS.md](DECISIONS.md) (detailed log: [docs/ai-log.md](docs/ai-log.md))
+- Security review of both repos (findings, fixes, evidence): [docs/security-review.md](docs/security-review.md)
+- Architecture in plain language, glossary and likely questions: [docs/study-guide.md](docs/study-guide.md)
 
 ## Tech stack
 
@@ -40,6 +42,7 @@ docker compose up --build
   Postgres, set `POSTGRES_HOST_PORT=5433` in `.env`.
 - The compose file creates the Docker network `trackmgmt-net`; start the web app's stack after this
   one and it joins the same network.
+- On the first start against an empty catalogue the API adds **sample data** (see [Sample data](#sample-data)).
 - **Database created before platform deliveries existed?** Such a database can hold tracks marked
   distributed without any delivery, which the API no longer allows. No data migration repairs them:
   reset the local database with `docker compose down -v` and start again.
@@ -69,13 +72,15 @@ missing or weak.
 | `Jwt__SigningKey` | – | required, ≥ 32 chars (HS256) |
 | `Jwt__Issuer` / `Jwt__Audience` | `trackmgmt-api` / `trackmgmt-web` | |
 | `Jwt__ExpirationMinutes` | 60 | 5–1440 |
-| `Database__MigrateOnStartup` | `false` (`true` in Development and compose) | applies migrations, seeds the admin |
+| `Database__MigrateOnStartup` | `false` (`true` in Development and compose) | applies migrations, seeds the admin, adds the sample catalogue to an empty database |
 | `Admin__Email` / `Admin__Password` | – | the one admin account; created on startup if missing, never changed afterwards |
-| `Cors__AllowedOrigins__0..n` | none (dev: `localhost:5173`, `localhost:8081`) | explicit allow-list |
+| `Cors__AllowedOrigins__0..n` | none (dev: `localhost:5173`, `localhost:8081`) | exact web app origins (`https://host[:port]`); `*`, paths or other schemes stop startup |
 | `ReverseProxy__KnownNetworks__0..n` | none (compose: `172.16.0.0/12`) | CIDR ranges of proxies whose `X-Forwarded-For` is trusted |
 | `RateLimiting__Login__PermitLimit` / `__WindowSeconds` | 10 / 60 | sign-in attempts per client IP per window |
+| `RateLimiting__Api__PermitLimit` / `__WindowSeconds` | 300 / 60 | all requests per client IP per window (health checks not counted) |
+| `RateLimiting__Writes__PermitLimit` / `__WindowSeconds` | 60 / 60 | change requests per signed-in admin per window |
 | `Api__MaxRequestBodyBytes` | 32768 | larger request bodies get `413` ProblemDetails |
-| `POSTGRES_PASSWORD`, `POSTGRES_HOST_PORT`, `REVERSE_PROXY_KNOWN_NETWORK` | – / 5432 / `172.16.0.0/12` | compose only (`.env`) |
+| `POSTGRES_PASSWORD`, `POSTGRES_HOST_PORT`, `REVERSE_PROXY_KNOWN_NETWORK`, `RATE_LIMIT_*` | – / 5432 / `172.16.0.0/12` / as above | compose only (`.env`, every variable listed in `.env.example`) |
 
 No secrets are committed: `appsettings*.json` contain none and `.env` is gitignored.
 
@@ -117,7 +122,8 @@ In Scalar (`/scalar`, Development) call **Login**, then paste the token into the
 - HS256, 60 minutes, no refresh token (sign in again). Issuer, audience, lifetime (30 s clock skew)
   and signature are checked; any other algorithm, including `none`, is rejected.
 - Every failure is the same `401` "Invalid email or password." (unknown email, wrong password,
-  locked account), with matching response times.
+  locked account). Unknown emails still run a password hash, so response times are close (measured
+  medians 64 ms vs 70 ms, see the security review).
 - 5 wrong passwords lock the account for 15 minutes; 10 attempts per minute per client IP, then
   `429` with `Retry-After`.
 - To change the admin password: the seeder never modifies an existing account, so delete the user
@@ -141,6 +147,10 @@ dotnet test --solution TrackManagement.slnx -- --filter-trait "Category=Integrat
   `./scripts/export-contract.ps1 -Feature <spec folder>`.
 - **CI**: `.github/workflows/backend-tests.yml` runs on every pull request to `main` (locked restore,
   Release build, all tests including PostgreSQL, TRX and coverage artifacts).
+- **Branch protection**: not enabled on GitHub for this repository. Every change went through a pull
+  request with a green CI run and was merged by the developer (merge commits, no force-push). For a
+  team, protect `main`: require a pull request, require the `backend-tests` check, block force-pushes
+  and deletions.
 
 ## API overview
 
@@ -223,6 +233,42 @@ curl -s -X PATCH localhost:8080/api/tracks/<id>/distributions/<spotify id> -H "A
 curl -s localhost:8080/api/tracks/<id>
 ```
 
+## Sample data
+
+On the first start with `Database__MigrateOnStartup=true` and **no artists and no tracks**, the API adds
+a sample catalogue: 17 artists (9 from Egypt, Lebanon, the UAE, Saudi Arabia and Palestine, some with
+Arabic names, and 8 from the UK and the US) and 32 tracks covering every genre and status, with
+deliveries to all three platforms in every state (pending, live, rejected, one sent again).
+
+**Everything except the names is sample data.** Artist names, countries, song titles, which artist
+sang which song, and genres are real (checked against public sources, listed in
+`specs/006-seed-data-security-hardening-and-docs/data-model.md`). Every ISRC (`XX-SMP-26-9NNNN`; `XX` is
+not a country), email (`@example.com`), release date, status, delivery and timestamp is invented and
+does not describe a real release.
+
+- It never touches existing data: if any artist or track exists, it is skipped (logged). Two API
+  instances starting together add it once (a database lock).
+- It never creates or changes accounts; the admin comes only from `Admin__*`.
+- To start without it: set `Database__MigrateOnStartup=false` and apply migrations yourself, or create
+  your own data first. To get it back locally: `docker compose down -v`, then `up`.
+
+## Security
+
+Summary; the full findings table with evidence is [docs/security-review.md](docs/security-review.md).
+
+- Writes need the Admin role on every change route (a test reads the app's route table and fails if one
+  is missing); request bodies bind to explicit records, so ids, statuses and deliveries cannot be posted.
+- Rate limits: sign-in 10/min per IP, all requests 300/min per IP, changes 60/min per admin (`429` +
+  `Retry-After`).
+- Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer` and `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`
+  (the Development-only API reference is left without the content policy so it can load); `/api`
+  responses are `Cache-Control: no-store`. No HSTS: there is no HTTPS endpoint without a domain.
+- CORS: exact origins from configuration, methods `GET, POST, PATCH`, headers `Authorization, Content-Type`.
+- Errors are ProblemDetails without stack traces, type names or SQL; logs never contain passwords,
+  tokens, the signing key or the connection string (tested).
+- The container runs as a non-root user (uid 1654) on the `aspnet:10.0.15-alpine3.24` runtime image.
+
 ## Project structure
 
 ```text
@@ -234,5 +280,6 @@ src/
 tests/TrackManagement.UnitTests/   unit + in-memory API tests (folders mirror src); Integration/ = PostgreSQL via Testcontainers
 specs/                             spec, plan, tasks and API contract per feature
 scripts/                           contract export
-docs/                              walkthrough (how the code works) and AI log
+docs/                              walkthrough, AI log, security review, study guide
+DECISIONS.md                       decisions and AI usage for both repos
 ```
