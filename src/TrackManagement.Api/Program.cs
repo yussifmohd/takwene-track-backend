@@ -45,12 +45,14 @@ try
     // (inside it, a handled 400/413 was logged as "responded 500").
     // The host's logger (sinks + configuration), not the static startup logger the middleware defaults to.
     app.UseSerilogRequestLogging(options => options.Logger = app.Services.GetRequiredService<Serilog.ILogger>());
+    app.UseSecurityHeaders();
     app.UseExceptionHandler();
     app.UseRequestBodyLimit();
     app.UseStatusCodePages();
-    app.UseCors(ApiServiceCollectionExtensions.CorsPolicyName);
-    app.UseRateLimiter();
+    app.UseCors(WebAppCors.PolicyName);
     app.UseAuthentication();
+    // After authentication, so the per-user write limit sees the user.
+    app.UseRateLimiter();
     app.UseAuthorization();
 
     if (app.Environment.IsDevelopment())

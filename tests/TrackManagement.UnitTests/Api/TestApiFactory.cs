@@ -10,19 +10,21 @@ using Microsoft.Extensions.DependencyInjection;
 using Serilog.Core;
 using TrackManagement.Api.Security;
 using TrackManagement.Infrastructure.Persistence;
+using TrackManagement.Infrastructure.Persistence.Seeding;
 using TrackManagement.UnitTests.TestSupport;
 
 namespace TrackManagement.UnitTests.Api;
 
 /// <summary>
 /// In-process API host for HTTP-level tests: EF InMemory instead of Postgres, test configuration,
-/// the admin seeded on startup, and TEST-ONLY endpoints (defined here, never in production code).
+/// the admin seeded on startup (the sample catalogue only when asked for, so tests start empty), and TEST-ONLY endpoints (defined here, never in production code).
 /// Environment defaults to "Testing" (no API docs).
 /// </summary>
 public sealed class TestApiFactory(
     string environment = "Testing",
     Action<IServiceCollection>? configureServices = null,
-    IReadOnlyDictionary<string, string?>? settings = null)
+    IReadOnlyDictionary<string, string?>? settings = null,
+    bool withSampleCatalog = false)
     : WebApplicationFactory<Program>
 {
     public const string ThrowingPath = "/test/throw";
@@ -49,6 +51,8 @@ public sealed class TestApiFactory(
         builder.UseSetting("Admin:Email", AdminEmail);
         builder.UseSetting("Admin:Password", AdminPassword);
         builder.UseSetting("RateLimiting:Login:PermitLimit", "1000");
+        builder.UseSetting("RateLimiting:Api:PermitLimit", "100000");
+        builder.UseSetting("RateLimiting:Writes:PermitLimit", "100000");
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
         {
             builder.UseSetting(key, value);
@@ -67,6 +71,14 @@ public sealed class TestApiFactory(
             foreach (var descriptor in toRemove)
             {
                 services.Remove(descriptor);
+            }
+
+            if (!withSampleCatalog)
+            {
+                foreach (var seeder in services.Where(d => d.ImplementationType == typeof(SampleCatalogSeeder)).ToList())
+                {
+                    services.Remove(seeder);
+                }
             }
 
             var dbName = $"api-tests-{Guid.NewGuid()}";

@@ -8,6 +8,8 @@ answers (live or rejected) are simulated by the admin, because no real platform 
 - Web app: [takwene-track-frontend](https://github.com/yussifmohd/takwene-track-frontend)
 - How the code works, feature by feature: [docs/walkthrough.md](docs/walkthrough.md)
 - Design decisions and AI usage: [DECISIONS.md](DECISIONS.md) (detailed log: [docs/ai-log.md](docs/ai-log.md))
+- Security review of both repos (findings, fixes, evidence): [docs/security-review.md](docs/security-review.md)
+- Architecture in plain language, glossary and likely questions: [docs/study-guide.md](docs/study-guide.md)
 
 ## Tech stack
 
@@ -19,30 +21,61 @@ xUnit v3 + NSubstitute + Shouldly, Testcontainers for PostgreSQL tests.
 
 ## Quick start
 
-### With Docker (recommended)
+Runs the whole project (database, API and web app) with Docker. You need **Docker Desktop** and **Git**.
 
-Prerequisite: Docker Desktop.
+**1. Clone both repositories** into the same folder:
 
 ```bash
-cp .env.example .env        # then set POSTGRES_PASSWORD, JWT__SIGNINGKEY (≥ 32 chars) and ADMIN__PASSWORD
-docker compose up --build
+git clone https://github.com/yussifmohd/takwene-track-backend.git
+git clone https://github.com/yussifmohd/takwene-track-frontend.git
 ```
+
+**2. Create the settings file (`.env`)** with one command. It fills in new random secrets, picks a free
+database port and prints the admin email and password:
+
+```bash
+cd takwene-track-backend
+powershell -ExecutionPolicy Bypass -File scripts/create-env.ps1   # Windows
+bash scripts/create-env.sh                                       # macOS / Linux
+```
+
+Keep the printed password: you sign in with it in step 5 (it is also in `.env` as `ADMIN__PASSWORD`).
+Were you given a ready `.env` file instead? Put it in the `takwene-track-backend` folder and skip the script.
+To fill it in by hand, copy `.env.example` to `.env` and set `JWT__SIGNINGKEY` (32+ random characters) and
+`ADMIN__PASSWORD` (12+ characters with upper case, lower case, a digit and a symbol).
+
+**3. Start the database and the API:**
+
+```bash
+docker compose up -d --build
+```
+
+The API applies the database migrations, creates the admin account and, on an empty database, adds a
+sample catalogue (17 artists, 32 tracks; see [Sample data](#sample-data)).
+
+**4. Start the web app:**
+
+```bash
+cd ../takwene-track-frontend
+docker compose up -d --build
+```
+
+**5. Open http://localhost:8081** and sign in with `admin@takwene.local` and the password from step 2.
 
 | URL | What |
 |---|---|
-| http://localhost:8080/health | infrastructure health (Docker / load balancer) |
-| http://localhost:8080/api/health | health for the web app (same JSON) |
-| http://localhost:8080/scalar | API reference (Development only) |
+| http://localhost:8081 | the web app |
+| http://localhost:8080/scalar | API reference, where you can try every endpoint |
+| http://localhost:8080/health | health check, including the database |
 
-- Migrations run on startup (compose sets `Database__MigrateOnStartup=true`). If a migration fails,
-  the API exits with a non-zero code instead of running on a broken schema.
-- Postgres is published on `127.0.0.1:${POSTGRES_HOST_PORT:-5432}` only. If 5432 is taken by a local
-  Postgres, set `POSTGRES_HOST_PORT=5433` in `.env`.
-- The compose file creates the Docker network `trackmgmt-net`; start the web app's stack after this
-  one and it joins the same network.
-- **Database created before platform deliveries existed?** Such a database can hold tracks marked
-  distributed without any delivery, which the API no longer allows. No data migration repairs them:
-  reset the local database with `docker compose down -v` and start again.
+- Windows: if `git clone` says "Filename too long", clone into a shorter folder (e.g. `C:\src`) or run
+  `git config --global core.longpaths true` first.
+- Database port already in use? Set `POSTGRES_HOST_PORT` in `.env` to a free port and run step 3 again. The port
+  is only for database tools such as pgAdmin; the API reaches the database inside Docker.
+- Sign-in refused after creating a new `.env`? The admin account is created only on the first start, so
+  the old password still applies. Run `docker compose down -v` (this deletes the local data) and step 3 again.
+- Stop: `docker compose down` in each folder. Start over with an empty database: `docker compose down -v` in this folder.
+- If a migration fails, the API stops with an error instead of running on a broken database.
 
 ### Without Docker
 
@@ -59,7 +92,8 @@ dotnet run --project src/TrackManagement.Api          # http://localhost:8080, D
 
 The API refuses to start when the connection string is missing, the JWT signing key is shorter than
 32 characters, the database is not UTF-8, or (with migrate-on-startup on) the admin email/password is
-missing or weak.
+missing or weak. To run the web app without Docker as well, see the
+[web app README](https://github.com/yussifmohd/takwene-track-frontend#without-docker).
 
 ## Configuration and environment variables
 
@@ -69,13 +103,15 @@ missing or weak.
 | `Jwt__SigningKey` | – | required, ≥ 32 chars (HS256) |
 | `Jwt__Issuer` / `Jwt__Audience` | `trackmgmt-api` / `trackmgmt-web` | |
 | `Jwt__ExpirationMinutes` | 60 | 5–1440 |
-| `Database__MigrateOnStartup` | `false` (`true` in Development and compose) | applies migrations, seeds the admin |
+| `Database__MigrateOnStartup` | `false` (`true` in Development and compose) | applies migrations, seeds the admin, adds the sample catalogue to an empty database |
 | `Admin__Email` / `Admin__Password` | – | the one admin account; created on startup if missing, never changed afterwards |
-| `Cors__AllowedOrigins__0..n` | none (dev: `localhost:5173`, `localhost:8081`) | explicit allow-list |
+| `Cors__AllowedOrigins__0..n` | none (dev: `localhost:5173`, `localhost:8081`) | exact web app origins (`https://host[:port]`); `*`, paths or other schemes stop startup |
 | `ReverseProxy__KnownNetworks__0..n` | none (compose: `172.16.0.0/12`) | CIDR ranges of proxies whose `X-Forwarded-For` is trusted |
 | `RateLimiting__Login__PermitLimit` / `__WindowSeconds` | 10 / 60 | sign-in attempts per client IP per window |
+| `RateLimiting__Api__PermitLimit` / `__WindowSeconds` | 300 / 60 | all requests per client IP per window (health checks not counted) |
+| `RateLimiting__Writes__PermitLimit` / `__WindowSeconds` | 60 / 60 | change requests per signed-in admin per window |
 | `Api__MaxRequestBodyBytes` | 32768 | larger request bodies get `413` ProblemDetails |
-| `POSTGRES_PASSWORD`, `POSTGRES_HOST_PORT`, `REVERSE_PROXY_KNOWN_NETWORK` | – / 5432 / `172.16.0.0/12` | compose only (`.env`) |
+| `POSTGRES_PASSWORD`, `POSTGRES_HOST_PORT`, `REVERSE_PROXY_KNOWN_NETWORK`, `RATE_LIMIT_*` | – / 5432 / `172.16.0.0/12` / as above | compose only (`.env`, every variable listed in `.env.example`) |
 
 No secrets are committed: `appsettings*.json` contain none and `.env` is gitignored.
 
@@ -117,7 +153,8 @@ In Scalar (`/scalar`, Development) call **Login**, then paste the token into the
 - HS256, 60 minutes, no refresh token (sign in again). Issuer, audience, lifetime (30 s clock skew)
   and signature are checked; any other algorithm, including `none`, is rejected.
 - Every failure is the same `401` "Invalid email or password." (unknown email, wrong password,
-  locked account), with matching response times.
+  locked account). Unknown emails still run a password hash, so response times are close (measured
+  medians 64 ms vs 70 ms, see the security review).
 - 5 wrong passwords lock the account for 15 minutes; 10 attempts per minute per client IP, then
   `429` with `Retry-After`.
 - To change the admin password: the seeder never modifies an existing account, so delete the user
@@ -141,6 +178,10 @@ dotnet test --solution TrackManagement.slnx -- --filter-trait "Category=Integrat
   `./scripts/export-contract.ps1 -Feature <spec folder>`.
 - **CI**: `.github/workflows/backend-tests.yml` runs on every pull request to `main` (locked restore,
   Release build, all tests including PostgreSQL, TRX and coverage artifacts).
+- **Branch protection**: not enabled on GitHub for this repository. Every change went through a pull
+  request with a green CI run and was merged by the developer (merge commits, no force-push). For a
+  team, protect `main`: require a pull request, require the `backend-tests` check, block force-pushes
+  and deletions.
 
 ## API overview
 
@@ -223,6 +264,42 @@ curl -s -X PATCH localhost:8080/api/tracks/<id>/distributions/<spotify id> -H "A
 curl -s localhost:8080/api/tracks/<id>
 ```
 
+## Sample data
+
+On the first start with `Database__MigrateOnStartup=true` and **no artists and no tracks**, the API adds
+a sample catalogue: 17 artists (9 from Egypt, Lebanon, the UAE, Saudi Arabia and Palestine, some with
+Arabic names, and 8 from the UK and the US) and 32 tracks covering every genre and status, with
+deliveries to all three platforms in every state (pending, live, rejected, one sent again).
+
+**Everything except the names is sample data.** Artist names, countries, song titles, which artist
+sang which song, and genres are real (checked against public sources, listed in
+`specs/006-seed-data-security-hardening-and-docs/data-model.md`). Every ISRC (`XX-SMP-26-9NNNN`; `XX` is
+not a country), email (`@example.com`), release date, status, delivery and timestamp is invented and
+does not describe a real release.
+
+- It never touches existing data: if any artist or track exists, it is skipped (logged). Two API
+  instances starting together add it once (a database lock).
+- It never creates or changes accounts; the admin comes only from `Admin__*`.
+- To start without it: set `Database__MigrateOnStartup=false` and apply migrations yourself, or create
+  your own data first. To get it back locally: `docker compose down -v`, then `up`.
+
+## Security
+
+Summary; the full findings table with evidence is [docs/security-review.md](docs/security-review.md).
+
+- Writes need the Admin role on every change route (a test reads the app's route table and fails if one
+  is missing); request bodies bind to explicit records, so ids, statuses and deliveries cannot be posted.
+- Rate limits: sign-in 10/min per IP, all requests 300/min per IP, changes 60/min per admin (`429` +
+  `Retry-After`).
+- Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer` and `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`
+  (the Development-only API reference is left without the content policy so it can load); `/api`
+  responses are `Cache-Control: no-store`. No HSTS: there is no HTTPS endpoint without a domain.
+- CORS: exact origins from configuration, methods `GET, POST, PATCH`, headers `Authorization, Content-Type`.
+- Errors are ProblemDetails without stack traces, type names or SQL; logs never contain passwords,
+  tokens, the signing key or the connection string (tested).
+- The container runs as a non-root user (uid 1654) on the `aspnet:10.0.15-alpine3.24` runtime image.
+
 ## Project structure
 
 ```text
@@ -233,6 +310,7 @@ src/
   TrackManagement.Api/             Minimal API endpoint groups, ProblemDetails/exception handlers, OpenAPI, health
 tests/TrackManagement.UnitTests/   unit + in-memory API tests (folders mirror src); Integration/ = PostgreSQL via Testcontainers
 specs/                             spec, plan, tasks and API contract per feature
-scripts/                           contract export
-docs/                              walkthrough (how the code works) and AI log
+scripts/                           contract export, .env creation
+docs/                              walkthrough, AI log, security review, study guide
+DECISIONS.md                       decisions and AI usage for both repos
 ```
