@@ -35,5 +35,5 @@ description: "Task list for Phase 6 – AWS Infrastructure Scripts (recorded aft
 - [x] T016 `validate.sh` + `tests/fake-aws/aws`: LF, `bash -n`, ShellCheck, configs, user data, seven guards
 - [x] T017 ShellCheck 0.11.0 clean (fixed the JMESPath `+` bug in destroy.sh); broken-config check; gitleaks clean
 - [x] T018 `infra/aws/README.md` (architecture, commands, Running on Windows, environments, cost, limits)
-- [ ] T019 Backend README "Deploying to AWS", DECISIONS.md note, ai-log Phase 6, walkthrough, Memory (master + repo)
-- [ ] T020 Commit with executable bits (`git ls-files --stage`: every `.sh` 100755), push, PR, CI green
+- [x] T019 Backend README "Deploying to AWS", DECISIONS.md note, ai-log Phase 6, walkthrough, Memory (master + repo)
+- [x] T020 Commit with executable bits (`git ls-files --stage`: every `.sh` 100755), push, PR, CI green
