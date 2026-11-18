@@ -300,6 +300,21 @@ Summary; the full findings table with evidence is [docs/security-review.md](docs
   tokens, the signing key or the connection string (tested).
 - The container runs as a non-root user (uid 1654) on the `aspnet:10.0.15-alpine3.24` runtime image.
 
+## Deploying to AWS
+
+Bash scripts for AWS CLI v2 in [infra/aws](infra/aws/README.md) create the cloud environment and release
+the app:
+- a load balancer in front of at least two EC2 instances, which run the same API and web containers;
+- PostgreSQL on RDS in private subnets;
+- the images in ECR and the secrets in SSM Parameter Store.
+
+There are separate settings for `dev` (for testing), `staging` and `prod`.
+
+**The scripts have been validated locally only** (syntax, ShellCheck, configuration, safety checks against
+a fake AWS CLI). **They have not been run against a real AWS account**, so a first real run may still
+surface problems. Running them creates resources that cost money. Start with `dev` in a test account and
+read [infra/aws/README.md](infra/aws/README.md) first.
+
 ## Project structure
 
 ```text
@@ -311,6 +326,7 @@ src/
 tests/TrackManagement.UnitTests/   unit + in-memory API tests (folders mirror src); Integration/ = PostgreSQL via Testcontainers
 specs/                             spec, plan, tasks and API contract per feature
 scripts/                           contract export, .env creation
+infra/aws/                         AWS deployment scripts (Bash + AWS CLI v2), see infra/aws/README.md
 docs/                              walkthrough, AI log, security review, study guide
 DECISIONS.md                       decisions and AI usage for both repos
 ```

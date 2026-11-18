@@ -67,6 +67,9 @@ catching problems the AI missed, and changing the plan; the developer notes in t
 | Manual testing | Scripted real-browser runs (Edge over DevTools) | Found bugs the AI's tests and scripts missed: "Clear filters" kept the artist, "Mark as distributed" recorded no platform, unreadable dropdowns in dark mode; reported the sign-out behaviour that led to the redirect change |
 | Documentation | READMEs, walkthroughs, AI log entries, security review, this file, study guide | Developer notes in the AI log (verbatim); the README rule (describe the finished product, not the phases); corrections where an AI statement could not be verified (one sentence removed from a developer note) |
 | Sample data | Seeder and catalogue; web searches to verify each real pairing | Asked for international legends next to MENA artists, everything clearly labelled as sample data, and every artist–song pairing verified instead of trusting the draft |
+| AWS scripts (optional extra) | Bash + AWS CLI v2 scripts in `infra/aws` (setup, deploy, status, preflight, destroy) and their local validation; it departed from the design without asking first (the Auto Scaling group replaces a fixed set of instances instead of being optional; one step file per resource run by `setup.sh` instead of numbered scripts), see the AI log, Phase 6 | Decided the AWS design (load balancer across at least two EC2 instances, optional Auto Scaling group, one script per resource, no Lambda) and chose to have the scripts written without running them |
+
+**AWS scripts:** the scripts were written and statically checked (syntax, ShellCheck, configuration, safety checks against a fake AWS CLI), and were not deployed by Claude.
 
 Per-phase detail, including which commits fixed what: [docs/ai-log.md](docs/ai-log.md).
 
