@@ -54,7 +54,7 @@ public sealed class OpenApiContractTests
         Enum(schemas["TrackListItemDto"]!["properties"]!["genre"]).ShouldBe(genres);
         Enum(schemas["ChangeTrackStatusRequest"]!["properties"]!["status"]).ShouldBe(statuses);
         Enum(schemas["TrackStatus"]).ShouldBe(statuses);
-        // A distribution's status is not a track status (its values arrive in Phase 4).
+        // A distribution's status is not a track status, so the track value list must not appear on it.
         Enum(schemas["TrackDistributionDto"]!["properties"]!["status"]).ShouldBeEmpty();
 
         var listParameters = document["paths"]!["/api/tracks"]!["get"]!["parameters"]!.AsArray();

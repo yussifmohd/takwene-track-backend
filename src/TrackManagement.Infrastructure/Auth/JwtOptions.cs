@@ -4,7 +4,7 @@ namespace TrackManagement.Infrastructure.Auth;
 
 /// <summary>
 /// JWT settings, validated at startup so the API refuses to run with a missing or weak key.
-/// Token issuing/validation is wired in Phase 1.
+/// The same settings issue tokens (JwtTokenService) and validate them (JwtValidation).
 /// </summary>
 public sealed class JwtOptions
 {
