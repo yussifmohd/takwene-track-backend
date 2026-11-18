@@ -3,11 +3,52 @@
 Covers **both repositories**: the API ([takwene-track-backend](https://github.com/yussifmohd/takwene-track-backend))
 and the web app ([takwene-track-frontend](https://github.com/yussifmohd/takwene-track-frontend)).
 
-The code was written with an AI coding assistant (Claude Code) using Spec Kit (spec → clarify → plan →
-tasks → implement, per phase and per repo). The developer (Yousef) set the requirements, answered every
-clarification, reviewed every plan before approving it, tested in the browser, reviewed and merged every
-pull request. Everything below comes from the running log [docs/ai-log.md](docs/ai-log.md) (one entry per
-phase, never rewritten) and the developer's own notes in it; the security evidence is in
+I directed this project. I chose the technology stack, the architecture and the way of working, and I
+reviewed and approved every plan before any code was written. Claude Code did the implementation under
+that direction.
+
+*Voice: in this opening section "I" is me, Yousef, the developer. The numbered answers and the decision
+record below are written in the third person: "the developer" is me, "the AI" is Claude Code.*
+
+### Choices I made
+- **Spec Kit with Memory.md**: every phase starts from a reviewed spec, plan and task list, and Memory.md carries decisions between sessions.
+- **Two repositories, one branch per phase, backend and frontend built together in each phase**: each phase ships a complete feature end to end and is reviewed as one unit.
+- **.NET 10 Minimal APIs with MapGroup**: one endpoint group per feature, without controller ceremony.
+- **Clean Architecture**: business rules stay in the domain, independent of the database and HTTP.
+- **CQRS**: changes and reads take separate, simpler paths.
+- **Ardalis Result, Repository and Specification**: expected outcomes without exceptions, and reusable, named queries.
+- **MediatR with a Unit of Work**: one save per command, and queries can never write.
+- **React with zustand, React Query, shadcn/ui and Tailwind**: a small session store, cached server data, and accessible components owned in the repo.
+- **Skeleton loaders**: every loading state shows the shape of the content instead of a spinner.
+- **Unit tests with CI on pull requests**: nothing is merged without a green run.
+- **Docker**: one command starts each repo's stack the same way on any machine.
+- **AWS design with a load balancer and at least two EC2 instances**: no single server is a point of failure. The deployment scripts are a separate, optional phase that is not built yet.
+
+### Phase planning
+- My master prompt gave Claude a reference list of seven phases: foundation and architecture, authentication and authorization, artists and platforms, tracks, distribution, hardening and docs, and AWS. Claude could adjust it with a reason.
+- Claude proposed the final breakdown: the same seven phases, each with a branch per repository. I approved it.
+- Before any implementation, I reviewed each phase's spec, plan and task list.
+
+### Proposals I approved or changed
+- Claude proposed the database (PostgreSQL with snake_case, the reference project's provider, as my prompt required), authentication and roles, and the ISRC and status rules. I approved them with these changes:
+  - **No register endpoint, no viewer role**: one admin from configuration is all a distributor's back office needs.
+  - **Artist email required**: the assignment's Artist entity has it.
+  - **No data migration for old local databases**: only test data existed, so resetting was simpler and safer.
+  - **No fixed limit of three platforms**: platforms are data, so up to 20 distinct ids per request.
+  - **PATCH to "distributed" refused**: a distributed track must record where it was delivered.
+  - **Scalar instead of Swagger**: in my prompt from the start, replacing the reference project's Swashbuckle.
+  - **README describes the finished product**: someone who clones the repo needs the product, not the phase history.
+  - **Every sign-out lands on the sign-in page**: after testing, landing on a public page looked as if nothing had happened.
+  - **Dropdown colours**: I chose the customizable select with a plain-CSS fallback after the dark-mode lists were unreadable.
+
+### Problems I caught
+- **Tracks marked distributed without any platform**: raised in the Phase 3 review and seen in the browser; fixed in Phase 4.
+- **"Clear filters" left the artist in the field**: found while testing; the tests had missed it.
+- **Unreadable dropdowns in dark mode**: found while testing; the AI's browser runs never opened a native list.
+- **The sign-out expectation**: I reported that sign-out looked wrong. It worked, but landed on a page that looked unchanged, so I decided it should go to the sign-in page.
+
+Everything below comes from the running log [docs/ai-log.md](docs/ai-log.md) (one entry per phase, never
+rewritten) and the developer's own notes in it; the security evidence is in
 [docs/security-review.md](docs/security-review.md).
 
 ## 1. What did AI generate, and what did the developer write or modify?
@@ -118,8 +159,8 @@ change. Every decision was made or approved by the developer.
 | Reads public, every change Admin-only; one admin from configuration; no registration, no viewer role | Developer (interview) | A catalogue to browse; only the distributor changes it |
 | Exactly three platforms (Spotify, Apple Music, YouTube Music) with fixed ids | Developer (interview) | Same ids in every environment; the code does not hard-code the count (up to 20 per request) |
 | Fixed genre list: Arabic Pop, Mahraganat, Khaleeji, Hip-Hop, Electronic, Rap, R&B, Rock; no "Pop" added in Phase 5 | Developer (interview); AI recommended not adding Pop | The list reflects the MENA catalogue; every sample song fits it truthfully, and adding a genre would change validation, the contract, generated types, dropdowns, filters and tests |
-| ISRC strict ISO 3901, accepted with or without hyphens, stored as 12 characters, unique | Developer (interview) | One canonical form; duplicates impossible |
-| Status workflow draft → submitted → distributed, submitted → draft, distributed final; invalid → 409 | Developer (interview) | Matches a release process; distributed cannot be undone |
+| ISRC strict ISO 3901, accepted with or without hyphens, stored as 12 characters, unique | AI (interview recommendation), approved | One canonical form; duplicates impossible |
+| Status workflow draft → submitted → distributed, submitted → draft, distributed final; invalid → 409 | AI (interview recommendation), approved | Matches a release process; distributed cannot be undone |
 | "Distributed" only through Distribute, with at least one delivery | Developer (Phase 4, after the Phase 3 review) | See question 3 |
 | Platform answers simulated by the admin (`PATCH …/distributions/{dspId}`), re-send after rejection | AI (interview recommendation), approved | No real platform integration; still shows every delivery state |
 | No data migration for old local databases; reset instead | Developer (Phase 4; AI had proposed a one-time fix) | Only local test data existed |
@@ -133,7 +174,8 @@ change. Every decision was made or approved by the developer.
 | Decision | Proposed by | Why |
 |---|---|---|
 | .NET 10 Minimal APIs, Clean Architecture, MediatR CQRS, Ardalis Result/Specification, FluentValidation, EF Core + PostgreSQL | Developer (fixed stack) | Mirrors the reference project the team knows |
-| Deviations from the reference: handler interfaces, a real Unit of Work (one save per command), no-tracking projections for queries, ProblemDetails for every error, plain DTOs on success | AI (recommended), approved | Fewer saves and clearer transactions; standard error format |
+| Handler interfaces, a real Unit of Work (one save per command), no-tracking projections for queries, ProblemDetails for every error | Developer (master prompt); the AI listed where these differ from the reference project and the developer confirmed them | Fewer saves and clearer transactions; standard error format |
+| Plain DTOs on success (no result wrapper in responses) | AI (interview recommendation), approved | Simple responses for the web app |
 | Domain rules in entities (`Track.ChangeStatus`, `Distribute`, `RecordAnswer`) | AI | One place for rules; the sample data is built through them too |
 | PostgreSQL row version (`xmin`) for concurrent changes → 409 | AI | Two admins cannot overwrite each other silently |
 | Contract exported from the running app, drift fails CI; web types generated from it | AI (after the build-time export failed) | The two repos cannot disagree silently |

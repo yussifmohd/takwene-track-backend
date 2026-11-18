@@ -5,6 +5,10 @@ Running evidence for `DECISIONS.md` (written in Phase 5). Covers **both** repos:
 [frontend](https://github.com/yussifmohd/takwene-track-frontend).
 Entries are appended per phase and never rewritten.
 
+**Who "I" is in this log:** in the entries written by the AI (generated vs written, security, mistakes &
+fixes, results), "I" means Claude (Claude Code, the AI assistant). In "Developer notes (Yousef)", "I" means
+Yousef, the developer; those notes are Yousef's own words, copied unchanged.
+
 ## Phase 0 – Foundation & health check (001-project-foundation-and-health-check / 001-project-foundation-and-health-check) – 2026-11-17
 
 ### (a) Generated vs written
