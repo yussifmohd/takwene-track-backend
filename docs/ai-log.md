@@ -761,9 +761,7 @@ gzip) pass, also from a clean clone.
   PowerShell version. When reporting, I named the skill as the source of the PowerShell plan but did not
   say that the master prompt itself asked for PowerShell (see mistake 4).
 - Developer notes (Yousef):
-  - "I decided the AWS design: a load balancer distributing traffic across at least two EC2 instances, an optional Auto Scaling Group, one script per resource, and no Lambda because it isn't needed."
-  - _(One more note is pending: the developer is rewording the sentence about a dry-run default.)_
-  - "Claude wrote the scripts."
+  - "I specified the AWS design in my original requirements: a load balancer distributing traffic across at least two EC2 instances, an optional Auto Scaling Group, and one script per resource. For the scripts themselves I gave Claude a separate prompt asking for AWS CLI and Bash scripts for dev, staging and prod; the result departs from my design in the ways listed in DECISIONS.md. I required that nothing creating paid AWS resources is run without asking me, and that the plan is printed first. Claude wrote the scripts."
 - For the record (AI): the scripts have **no dry-run mode**. `setup.sh` prints the plan and a cost warning
   and changes nothing until the operator types the environment name (`--yes` for CI); `destroy.sh` needs
   the typed prefix. The request on record is the master prompt's "Do NOT execute anything that creates paid
