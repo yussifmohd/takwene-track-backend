@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Stand-in for the AWS CLI used by validate.sh: answers the identity calls, records every call, and
+# fails on anything else, so the guard tests prove a script stopped before changing anything.
+printf '%s\n' "$*" >>"${FAKE_AWS_LOG:?FAKE_AWS_LOG must be set}"
+case "$*" in
+  --version) echo "aws-cli/2.99.0 fake"; exit 0 ;;
+  *"sts get-caller-identity"*"--query Arn"*) echo "arn:aws:iam::123456789012:user/validate"; exit 0 ;;
+  *"sts get-caller-identity"*) echo "123456789012"; exit 0 ;;
+esac
+echo "fake aws: unexpected call: $*" >&2
+exit 99
