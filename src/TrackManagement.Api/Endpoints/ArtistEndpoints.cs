@@ -53,7 +53,7 @@ public static class ArtistEndpoints
             })
             .WithName("CreateArtist")
             .WithSummary("Add an artist (admin only)")
-            .RequireAdmin()
+            .RequireAdminWrite()
             .Produces<ArtistDto>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
             .ProducesValidationProblem(StatusCodes.Status409Conflict)

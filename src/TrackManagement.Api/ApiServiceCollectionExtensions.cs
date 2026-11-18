@@ -10,8 +10,6 @@ namespace TrackManagement.Api;
 
 public static class ApiServiceCollectionExtensions
 {
-    public const string CorsPolicyName = "WebApp";
-
     public static IServiceCollection AddApi(this IServiceCollection services, IConfiguration configuration)
     {
         services.TryAddSingleton(TimeProvider.System);
@@ -46,14 +44,9 @@ public static class ApiServiceCollectionExtensions
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpCurrentUser>();
         services.AddAuthPolicies();
-        services.AddLoginRateLimiting(configuration);
+        services.AddApiRateLimiting(configuration);
         services.AddTrustedForwardedHeaders(configuration);
-
-        var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-        services.AddCors(options => options.AddPolicy(CorsPolicyName, policy => policy
-            .WithOrigins(allowedOrigins)
-            .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
-            .WithHeaders("Authorization", "Content-Type")));
+        services.AddWebAppCors(configuration);
 
         return services;
     }

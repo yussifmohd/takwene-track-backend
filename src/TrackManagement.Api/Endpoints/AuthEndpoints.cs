@@ -21,7 +21,7 @@ public static class AuthEndpoints
             .WithName("Login")
             .WithSummary("Sign in as the admin and receive a 60-minute access token")
             .AllowAnonymous()
-            .RequireRateLimiting(LoginRateLimiting.PolicyName)
+            .RequireRateLimiting(ApiRateLimiting.LoginPolicy)
             .Produces<LoginResponse>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)

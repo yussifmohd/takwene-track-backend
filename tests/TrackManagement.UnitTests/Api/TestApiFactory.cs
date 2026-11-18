@@ -51,6 +51,8 @@ public sealed class TestApiFactory(
         builder.UseSetting("Admin:Email", AdminEmail);
         builder.UseSetting("Admin:Password", AdminPassword);
         builder.UseSetting("RateLimiting:Login:PermitLimit", "1000");
+        builder.UseSetting("RateLimiting:Api:PermitLimit", "100000");
+        builder.UseSetting("RateLimiting:Writes:PermitLimit", "100000");
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
         {
             builder.UseSetting(key, value);
