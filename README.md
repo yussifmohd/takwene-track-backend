@@ -21,31 +21,56 @@ xUnit v3 + NSubstitute + Shouldly, Testcontainers for PostgreSQL tests.
 
 ## Quick start
 
-### With Docker (recommended)
+Runs the whole project (database, API and web app) with Docker. You need **Docker Desktop** and **Git**.
 
-Prerequisite: Docker Desktop.
+**1. Clone both repositories** into the same folder:
 
 ```bash
-cp .env.example .env        # then set POSTGRES_PASSWORD, JWT__SIGNINGKEY (≥ 32 chars) and ADMIN__PASSWORD
-docker compose up --build
+git clone https://github.com/yussifmohd/takwene-track-backend.git
+git clone https://github.com/yussifmohd/takwene-track-frontend.git
 ```
+
+**2. Create the API's settings file** and fill in the two empty values:
+
+```bash
+cd takwene-track-backend
+cp .env.example .env
+```
+
+| In `.env` | What to put |
+|---|---|
+| `JWT__SIGNINGKEY` | any random text of 32+ characters, e.g. the output of `openssl rand -base64 48` |
+| `ADMIN__PASSWORD` | the admin's password: 12+ characters with upper case, lower case, a digit and a symbol |
+
+Everything else already has working local values (admin email `admin@takwene.local`).
+
+**3. Start the database and the API:**
+
+```bash
+docker compose up -d --build
+```
+
+The API applies the database migrations, creates the admin account and, on an empty database, adds a
+sample catalogue (17 artists, 32 tracks; see [Sample data](#sample-data)).
+
+**4. Start the web app:**
+
+```bash
+cd ../takwene-track-frontend
+docker compose up -d --build
+```
+
+**5. Open http://localhost:8081** and sign in with `admin@takwene.local` and your `ADMIN__PASSWORD`.
 
 | URL | What |
 |---|---|
-| http://localhost:8080/health | infrastructure health (Docker / load balancer) |
-| http://localhost:8080/api/health | health for the web app (same JSON) |
-| http://localhost:8080/scalar | API reference (Development only) |
+| http://localhost:8081 | the web app |
+| http://localhost:8080/scalar | API reference, where you can try every endpoint |
+| http://localhost:8080/health | health check, including the database |
 
-- Migrations run on startup (compose sets `Database__MigrateOnStartup=true`). If a migration fails,
-  the API exits with a non-zero code instead of running on a broken schema.
-- Postgres is published on `127.0.0.1:${POSTGRES_HOST_PORT:-5432}` only. If 5432 is taken by a local
-  Postgres, set `POSTGRES_HOST_PORT=5433` in `.env`.
-- The compose file creates the Docker network `trackmgmt-net`; start the web app's stack after this
-  one and it joins the same network.
-- On the first start against an empty catalogue the API adds **sample data** (see [Sample data](#sample-data)).
-- **Database created before platform deliveries existed?** Such a database can hold tracks marked
-  distributed without any delivery, which the API no longer allows. No data migration repairs them:
-  reset the local database with `docker compose down -v` and start again.
+- Port 5432 already used by a local PostgreSQL? Set `POSTGRES_HOST_PORT=5433` in `.env` and run step 3 again.
+- Stop: `docker compose down` in each folder. Start over with an empty database: `docker compose down -v` in this folder.
+- If a migration fails, the API stops with an error instead of running on a broken database.
 
 ### Without Docker
 
@@ -62,7 +87,8 @@ dotnet run --project src/TrackManagement.Api          # http://localhost:8080, D
 
 The API refuses to start when the connection string is missing, the JWT signing key is shorter than
 32 characters, the database is not UTF-8, or (with migrate-on-startup on) the admin email/password is
-missing or weak.
+missing or weak. To run the web app without Docker as well, see the
+[web app README](https://github.com/yussifmohd/takwene-track-frontend#without-docker).
 
 ## Configuration and environment variables
 

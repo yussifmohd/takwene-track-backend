@@ -88,7 +88,7 @@ instead of failing at runtime.
    version and gets 409 "This record was changed by someone else." Tested against real PostgreSQL.
 5. **Why can't PATCH set "distributed"?** A distributed track must say where it was delivered. Only
    `POST /distribute` reaches that status, and it records at least one delivery. The AI first allowed the
-   PATCH; the developer caught it (DECISIONS.md, question 3).
+   PATCH; the developer caught it (DECISIONS.md, "What the AI got wrong").
 6. **How is the ISRC validated?** ISO 3901 shape (country letters, registrant, year, 5-digit number),
    accepted with or without hyphens in any case, stored as 12 uppercase characters with a unique index
    and a database check constraint, shown hyphenated.

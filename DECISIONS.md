@@ -7,7 +7,7 @@ I directed this project. I chose the technology stack, the architecture and the 
 reviewed and approved every plan before any code was written. Claude Code did the implementation under
 that direction.
 
-*Voice: in this opening section "I" is me, Yousef, the developer. The numbered answers and the decision
+*Voice: in this opening section "I" is me, Yousef, the developer. The sections and the decision
 record below are written in the third person: "the developer" is me, "the AI" is Claude Code.*
 
 ### Choices I made
@@ -51,7 +51,7 @@ Everything below comes from the running log [docs/ai-log.md](docs/ai-log.md) (on
 rewritten) and the developer's own notes in it; the security evidence is in
 [docs/security-review.md](docs/security-review.md).
 
-## 1. What did AI generate, and what did the developer write or modify?
+## What the AI generated, and what the developer wrote or changed
 
 **Honest summary:** the AI wrote nearly all of the code, tests, specifications and documentation. The
 developer's part was deciding what to build and how strictly, reviewing, testing in a real browser,
@@ -70,7 +70,7 @@ catching problems the AI missed, and changing the plan; the developer notes in t
 
 Per-phase detail, including which commits fixed what: [docs/ai-log.md](docs/ai-log.md).
 
-## 2. Security issues found or introduced in AI code, and how they were handled
+## Security issues the AI's code introduced or the review found, and how they were handled
 
 | Issue | Introduced or found by | Handling |
 |---|---|---|
@@ -95,15 +95,18 @@ Per-phase detail, including which commits fixed what: [docs/ai-log.md](docs/ai-l
 
 Full table with severity and evidence for each row: [docs/security-review.md](docs/security-review.md).
 
-## 3. One thing the AI got wrong that had to be fixed, and why
-
-### A track could be "distributed" without saying where it was distributed
+## What the AI got wrong: a track could be "distributed" without saying where
 
 **What happened.** The assignment describes changing a track's status with a PATCH, and its status
 list includes "distributed". The AI followed that wording literally in Phase 3: an admin could PATCH a
 submitted track to "distributed", and the web app had a "Mark as distributed" button with a confirmation.
 The AI modelled "distributed" as a status only, **without recording which platforms the track was sent
 to**. For a music distributor that is the one thing "distributed" has to mean.
+
+**Why it was wrong.** "Distributed" is a claim that the track reached streaming platforms. Marked by
+a PATCH, it was a claim with no record behind it: nobody could see which platform had the track, whether
+it went live or was rejected, or send it again. And with two ways to reach the same status, one recording
+deliveries and one not, the catalogue could contradict itself.
 
 **Who caught it.** The developer. While reviewing the Phase 3 plan the developer raised the risk that a PATCH could
 set "distributed" without any platform delivery and clash with the upcoming distribute endpoint, and asked
@@ -161,7 +164,7 @@ change. Every decision was made or approved by the developer.
 | Fixed genre list: Arabic Pop, Mahraganat, Khaleeji, Hip-Hop, Electronic, Rap, R&B, Rock; no "Pop" added in Phase 5 | Developer (interview); AI recommended not adding Pop | The list reflects the MENA catalogue; every sample song fits it truthfully, and adding a genre would change validation, the contract, generated types, dropdowns, filters and tests |
 | ISRC strict ISO 3901, accepted with or without hyphens, stored as 12 characters, unique | AI (interview recommendation), approved | One canonical form; duplicates impossible |
 | Status workflow draft → submitted → distributed, submitted → draft, distributed final; invalid → 409 | AI (interview recommendation), approved | Matches a release process; distributed cannot be undone |
-| "Distributed" only through Distribute, with at least one delivery | Developer (Phase 4, after the Phase 3 review) | See question 3 |
+| "Distributed" only through Distribute, with at least one delivery | Developer (Phase 4, after the Phase 3 review) | See "What the AI got wrong" |
 | Platform answers simulated by the admin (`PATCH …/distributions/{dspId}`), re-send after rejection | AI (interview recommendation), approved | No real platform integration; still shows every delivery state |
 | No data migration for old local databases; reset instead | Developer (Phase 4; AI had proposed a one-time fix) | Only local test data existed |
 | Artist email required and unique; shown only to admins | Developer (email required, Phase 2); AI (admin-only display) | Assignment's entity; emails are personal data |
