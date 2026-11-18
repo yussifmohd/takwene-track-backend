@@ -355,3 +355,42 @@ Quickstart results are in `docs/ai-log.md` (Phase 5).
 - No HTTPS/HSTS (no domain); sign-out does not revoke a token before it expires.
 - Rate limits are per instance (in memory); several instances would each allow the full limit.
 - Image findings change as CVEs are published: re-scan with Trivy on every rebuild.
+
+## Phase 6 – AWS infrastructure scripts (`007-aws-infrastructure-scripts`)
+
+### What was built
+Bash scripts over AWS CLI v2 in `infra/aws` that create an environment (`dev`, `staging` or `prod`),
+release the app to it, show its state and delete it. They were checked locally only and have not been
+run against AWS.
+
+### Important files
+- `infra/aws/lib/common.sh` – strict mode, AWS wrappers, tags, confirmation, configuration validation.
+- `infra/aws/config/<env>.env` – all settings; `dev` is the environment for testing.
+- `infra/aws/steps/*.sh` – one file per resource: network, security groups, ECR, secrets, logs/S3, RDS, IAM, ALB, compute.
+- `infra/aws/instance/run-app.sh` – runs on each instance: reads secrets from SSM, starts the `api` and `web` containers, waits for `/health`.
+- `infra/aws/setup.sh`, `deploy.sh`, `status.sh`, `preflight.sh`, `destroy.sh`, `validate.sh`.
+
+### Request flow: a release
+1. `deploy.sh` builds `api` and `web` images from committed code and pushes them to ECR with one tag.
+2. It stores the tag in SSM (`/trackmgmt/<env>/image-tag`).
+3. Through Systems Manager it runs `run-app.sh --migrate` on the first instance, then `run-app.sh` on the
+   others one by one; each waits until the API answers `/health`.
+4. The load balancer sends `/api/*` to port 8080 and everything else to 8081 on healthy instances; new
+   instances start the stored tag on boot without migrations.
+
+### Key decisions and why
+- Bash, because the Phase 6 prompt asked for it (the master prompt preferred PowerShell).
+- Auto Scaling group with at least two instances, so failed instances are replaced.
+- Secrets only in SSM Parameter Store, never in files, user data or command lines.
+- No SSH and no NAT gateway: Systems Manager for access, public IPs with ingress only from the load balancer.
+- Database migrations on exactly one instance per release.
+
+### How to run and test
+`cd infra/aws && ./validate.sh --shellcheck-docker` runs every local check without AWS. With your own
+AWS sign-in: `./preflight.sh --env dev` (read-only), then `setup.sh`, `deploy.sh`, `status.sh`,
+`destroy.sh` – see `infra/aws/README.md`. On Windows use Git Bash (`bash setup.sh --env dev`).
+
+### Known limitations
+Not run against AWS; HTTP only until a certificate is configured; the sample catalogue is added to an
+empty database on the first release in every environment; migrations run while older instances still
+serve; the design departs from the master prompt's numbered-script layout (see the AI log, Phase 6).
